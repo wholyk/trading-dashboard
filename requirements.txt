@@ -1,5 +1,8 @@
-﻿streamlit>=1.28
+streamlit>=1.28
 yfinance>=0.2.40
 pandas>=2.1.0
 numpy>=1.25.0
 matplotlib>=3.8.0
+alpaca-trade-api>=3.0.0
+flask>=2.3.2
+functions-framework>=3.4.0
