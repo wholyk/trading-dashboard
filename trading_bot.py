@@ -275,9 +275,9 @@ class TradingBot:
             List of bar data
         """
         try:
-            bars = self.api.get_bars(symbol, timeframe, limit=limit).df
+            bars = self.api.get_bars(symbol, timeframe, limit=limit)
             logger.info(f"Retrieved {len(bars)} bars for {symbol}")
-            return self.api.get_bars(symbol, timeframe, limit=limit)
+            return bars
         except APIError as e:
             logger.error(f"Error getting market data for {symbol}: {e}")
             return []
