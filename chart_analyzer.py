@@ -108,7 +108,7 @@ class ChartAnalyzer:
         
         # Calculate liquidity sweep indicators
         total_pixels = gray.size
-        edge_density = np.sum(edges > 0) / total_pixels
+        edge_density = np.sum(edges > 0) / total_pixels if total_pixels > 0 else 0.0
         
         # Normalize scores
         wick_score = min(wick_count / 50.0, 1.0)  # Normalize to 0-1
@@ -180,8 +180,9 @@ class ChartAnalyzer:
         red_mask = cv2.bitwise_or(red_mask1, red_mask2)
         
         # Calculate color presence
-        green_presence = np.sum(green_mask > 0) / gray.size
-        red_presence = np.sum(red_mask > 0) / gray.size
+        total_pixels = gray.size
+        green_presence = np.sum(green_mask > 0) / total_pixels if total_pixels > 0 else 0.0
+        red_presence = np.sum(red_mask > 0) / total_pixels if total_pixels > 0 else 0.0
         color_contrast = abs(green_presence - red_presence)
         
         # Normalize scores
