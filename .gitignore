@@ -2,3 +2,11 @@
 __pycache__/
 *.pyc
 .streamlit/
+.env
+.env.local
+*.log
+config.json
+secrets/
+*.key
+.DS_Store
+/tmp/
