@@ -1,0 +1,46 @@
+inbox:
+  long_videos: INBOX/long_videos
+  clips: INBOX/clips
+  ideas: INBOX/ideas.txt
+  watch_interval: 5
+storage:
+  originals: storage/originals
+  intermediate: storage/intermediate
+  finals: storage/finals
+  captions: storage/captions
+  metadata: storage/metadata
+video:
+  target_width: 1080
+  target_height: 1920
+  fps: 30
+  max_duration: 60
+  min_duration: 15
+  video_codec: libx264
+  audio_codec: aac
+  bitrate: 8M
+caption:
+  font_size: 48
+  font_color: white
+  bg_color: black
+  bg_opacity: 0.7
+  position: bottom
+  max_words_per_line: 6
+upload:
+  enabled: false
+  min_delay_minutes: 60
+  max_delay_minutes: 180
+  max_per_day: 5
+  privacy_status: private
+  category_id: '22'
+  made_for_kids: false
+worker:
+  max_retries: 3
+  retry_delay: 60
+  timeout: 600
+  parallel_workers: 1
+dashboard:
+  host: localhost
+  port: 8501
+  title: ShortsFactory Dashboard
+database_path: database/shortsfactory.db
+log_dir: logs

@@ -126,14 +126,22 @@ class Database:
             session.commit()
             session.refresh(job)
             
+            # Store job_id before closing session
+            job_id = job.id
+            
             # Log activity
             self.log_activity(
                 session,
-                job_id=job.id,
+                job_id=job_id,
                 action="JOB_CREATED",
                 details=f"Created job from {source_type}"
             )
             session.commit()
+            
+            # Force load all attributes before expunging
+            _ = (job.id, job.state, job.created_at, job.updated_at, 
+                 job.source_type, job.source_path, job.progress)
+            session.expunge(job)
             
             return job
         finally:
@@ -173,6 +181,9 @@ class Database:
             session.commit()
             session.refresh(job)
             
+            # Make job object available outside session
+            session.expunge(job)
+            
             return job
         finally:
             session.close()
@@ -181,7 +192,10 @@ class Database:
         """Get a job by ID"""
         session = self.get_session()
         try:
-            return session.query(Job).filter(Job.id == job_id).first()
+            job = session.query(Job).filter(Job.id == job_id).first()
+            if job:
+                session.expunge(job)
+            return job
         finally:
             session.close()
     
@@ -189,7 +203,10 @@ class Database:
         """Get all jobs in a specific state"""
         session = self.get_session()
         try:
-            return session.query(Job).filter(Job.state == state).limit(limit).all()
+            jobs = session.query(Job).filter(Job.state == state).limit(limit).all()
+            for job in jobs:
+                session.expunge(job)
+            return jobs
         finally:
             session.close()
     
@@ -197,7 +214,10 @@ class Database:
         """Get all jobs"""
         session = self.get_session()
         try:
-            return session.query(Job).order_by(Job.created_at.desc()).limit(limit).all()
+            jobs = session.query(Job).order_by(Job.created_at.desc()).limit(limit).all()
+            for job in jobs:
+                session.expunge(job)
+            return jobs
         finally:
             session.close()
     
@@ -220,7 +240,10 @@ class Database:
             query = session.query(ActivityLog).order_by(ActivityLog.timestamp.desc())
             if job_id is not None:
                 query = query.filter(ActivityLog.job_id == job_id)
-            return query.limit(limit).all()
+            logs = query.limit(limit).all()
+            for log in logs:
+                session.expunge(log)
+            return logs
         finally:
             session.close()
     
