@@ -7,7 +7,6 @@ It checks imports, configuration, and basic functionality without requiring netw
 """
 
 import sys
-import os
 from pathlib import Path
 
 
