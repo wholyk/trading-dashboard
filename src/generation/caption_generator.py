@@ -11,7 +11,7 @@ def main():
     parser.add_argument('--script-file', required=True)
     parser.add_argument('--video-file', required=True)
     parser.add_argument('--output-file', required=True)
-    args = parser.parse_args()
+    parser.parse_args()
     
     print("[STUB] Generating captions and metadata")
     print("✓ Caption generation complete (stub)")
