@@ -40,7 +40,6 @@ def get_youtube_client():
 
 def search_viral_shorts(youtube, config):
     """Search for viral Shorts in niche"""
-    niche = config['detection']['niche']
     keywords = config['detection']['keywords']
     max_results = config['detection']['youtube']['max_results_per_query']
     min_views = config['detection']['min_views_threshold']
