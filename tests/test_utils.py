@@ -1,6 +1,5 @@
 """Tests for utility functions."""
 
-from pathlib import Path
 from src.utils import (
     format_currency,
     format_percentage,
