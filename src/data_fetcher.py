@@ -187,7 +187,7 @@ class DataFetcher:
             _self.logger.error(f"Error fetching market indices: {e}")
             return {}
     
-    def validate_ticker(_self, ticker: str) -> bool:
+    def validate_ticker(self, ticker: str) -> bool:
         """
         Validate if a ticker symbol exists and has data.
         
