@@ -21,16 +21,43 @@ def setup_logging(config: Dict[str, Any]) -> logging.Logger:
     log_level = getattr(logging, log_config.get("level", "INFO"))
     log_format = log_config.get("format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     log_file = log_config.get("file", "trading_dashboard.log")
-    
+
+    # Handler enablement flags (default to previous behavior: both enabled)
+    file_enabled = log_config.get("file_enabled", True)
+    console_enabled = log_config.get("console_enabled", True)
+
+    # Optional per-handler levels defaulting to the global log level
+    file_level_name = log_config.get("file_level", log_config.get("level", "INFO"))
+    console_level_name = log_config.get("console_level", log_config.get("level", "INFO"))
+    file_level = getattr(logging, file_level_name, log_level)
+    console_level = getattr(logging, console_level_name, log_level)
+
+    formatter = logging.Formatter(log_format)
+    handlers = []
+
+    if file_enabled:
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setLevel(file_level)
+        file_handler.setFormatter(formatter)
+        handlers.append(file_handler)
+
+    if console_enabled:
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(console_level)
+        console_handler.setFormatter(formatter)
+        handlers.append(console_handler)
+
+    # Ensure at least one handler is present to avoid completely silent logging
+    if not handlers:
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(log_level)
+        console_handler.setFormatter(formatter)
+        handlers.append(console_handler)
+
     logging.basicConfig(
         level=log_level,
-        format=log_format,
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler()
-        ]
+        handlers=handlers,
     )
-    
     return logging.getLogger("trading_dashboard")
 
 
