@@ -342,12 +342,12 @@ def render_portfolio(config, logger, data_fetcher, portfolio):
         if not holdings_df.empty:
             # Format the dataframe for display
             display_df = holdings_df.copy()
-            display_df["Purchase Price"] = display_df["Purchase Price"].apply(lambda x: format_currency(x))
-            display_df["Current Price"] = display_df["Current Price"].apply(lambda x: format_currency(x))
-            display_df["Cost Basis"] = display_df["Cost Basis"].apply(lambda x: format_currency(x))
-            display_df["Current Value"] = display_df["Current Value"].apply(lambda x: format_currency(x))
-            display_df["Gain/Loss"] = display_df["Gain/Loss"].apply(lambda x: format_currency(x))
-            display_df["Gain/Loss %"] = display_df["Gain/Loss %"].apply(lambda x: f"{x:.2f}%")
+            display_df["Purchase Price"] = display_df["Purchase Price"].apply(format_currency)
+            display_df["Current Price"] = display_df["Current Price"].apply(format_currency)
+            display_df["Cost Basis"] = display_df["Cost Basis"].apply(format_currency)
+            display_df["Current Value"] = display_df["Current Value"].apply(format_currency)
+            display_df["Gain/Loss"] = display_df["Gain/Loss"].apply(format_currency)
+            display_df["Gain/Loss %"] = display_df["Gain/Loss %"].apply("{:.2f}%".format)
             
             st.dataframe(display_df, use_container_width=True, hide_index=True)
         
