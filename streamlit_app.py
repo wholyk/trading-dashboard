@@ -9,7 +9,6 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime
-import logging
 
 # Import custom modules
 from src.utils import load_config, setup_logging, format_currency, format_percentage, validate_ticker, handle_error
