@@ -2,3 +2,10 @@
 __pycache__/
 *.pyc
 .streamlit/
+*.log
+.coverage
+htmlcov/
+.pytest_cache/
+config.yaml
+*.db
+*.sqlite

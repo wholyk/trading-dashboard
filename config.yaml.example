@@ -1,0 +1,95 @@
+# Default configuration for Trading Dashboard
+
+# Market data settings
+data:
+  # Default ticker symbols to display
+  default_tickers:
+    - "AAPL"
+    - "GOOGL"
+    - "MSFT"
+    - "TSLA"
+  
+  # Default timeframe for charts
+  default_timeframe: "1Y"
+  
+  # Data refresh interval in seconds
+  refresh_interval: 60
+  
+  # Maximum number of data points to fetch
+  max_data_points: 1000
+
+# Technical indicators default parameters
+indicators:
+  sma:
+    periods: [20, 50, 200]
+  ema:
+    periods: [12, 26]
+  rsi:
+    period: 14
+    overbought: 70
+    oversold: 30
+  macd:
+    fast: 12
+    slow: 26
+    signal: 9
+  bollinger_bands:
+    period: 20
+    std_dev: 2
+
+# Chart settings
+charts:
+  # Chart theme
+  theme: "plotly_dark"
+  
+  # Default chart height in pixels
+  height: 600
+  
+  # Show volume by default
+  show_volume: true
+
+# Portfolio settings
+portfolio:
+  # Currency symbol
+  currency: "USD"
+  
+  # Default commission per trade
+  default_commission: 0.0
+
+# UI settings
+ui:
+  # Page title
+  page_title: "Trading Dashboard"
+  
+  # Page icon (emoji or image path)
+  page_icon: "📈"
+  
+  # Layout mode: "centered" or "wide"
+  layout: "wide"
+  
+  # Initial sidebar state: "expanded" or "collapsed"
+  initial_sidebar_state: "expanded"
+
+# Watchlist settings
+watchlist:
+  # Maximum number of stocks in watchlist
+  max_stocks: 50
+  
+  # Update frequency in seconds
+  update_frequency: 30
+
+# Major market indices
+market_indices:
+  - symbol: "^GSPC"
+    name: "S&P 500"
+  - symbol: "^DJI"
+    name: "Dow Jones"
+  - symbol: "^IXIC"
+    name: "NASDAQ"
+  - symbol: "^RUT"
+    name: "Russell 2000"
+
+# Logging configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "trading_dashboard.log"
