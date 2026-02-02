@@ -124,8 +124,7 @@ src/
 │   └── auto_optimizer.py
 └── utils/               # Shared utilities
     ├── check_quota.py
-    ├── cost_tracker.py
-    └── (other utilities)
+    └── cost_tracker.py
 ```
 
 ### Module Descriptions
