@@ -51,14 +51,14 @@ jobs:
           python src/learning/auto_optimizer.py
       
       - name: Generate performance report
-        if: always()
+        if: ${{ always() && hashFiles('src/utils/report_generator.py') != '' }}
         run: |
           python src/utils/report_generator.py \
             --type performance \
             --output /tmp/performance_report.md
       
       - name: Save performance metrics
-        if: always()
+        if: ${{ always() && hashFiles('src/utils/report_generator.py') != '' }}
         uses: actions/upload-artifact@v3
         with:
           name: performance-metrics
