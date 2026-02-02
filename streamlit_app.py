@@ -11,7 +11,7 @@ import plotly.graph_objects as go
 from datetime import datetime
 
 # Import custom modules
-from src.utils import load_config, setup_logging, format_currency, format_percentage, validate_ticker, handle_error
+from src.utils import load_config, setup_logging, format_currency, format_percentage, validate_ticker
 from src.data_fetcher import DataFetcher
 from src.indicators import TechnicalIndicators
 from src.charts import ChartGenerator
