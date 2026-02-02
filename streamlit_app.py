@@ -468,7 +468,13 @@ def render_watchlist(config, logger, data_fetcher, watchlist):
             display_df["Change %"] = display_df["Change %"].apply(lambda x: f"{x:+.2f}%")
             display_df["Volume"] = display_df["Volume"].apply(lambda x: f"{x:,}")
             display_df["Market Cap"] = display_df["Market Cap"].apply(
-                lambda x: f"${x/1e12:.2f}T" if x >= 1e12 else f"${x/1e9:.2f}B" if x >= 1e9 else f"${x/1e6:.2f}M" if x else "N/A"
+                lambda x: (
+                    "N/A" if x is None or x <= 0
+                    else f"${x/1e12:.2f}T" if x >= 1e12
+                    else f"${x/1e9:.2f}B" if x >= 1e9
+                    else f"${x/1e6:.2f}M" if x >= 1e6
+                    else "<$1M"
+                )
             )
             
             st.dataframe(display_df, use_container_width=True, hide_index=True)
