@@ -254,9 +254,66 @@ def render_portfolio(config, logger, data_fetcher, portfolio):
         tickers = list(set([h["ticker"] for h in holdings]))
         with st.spinner("Updating portfolio values..."):
             current_prices = {}
+            tickers_valued_at_cost = []
+            tickers_without_price = []
             for ticker in tickers:
                 info = data_fetcher.get_stock_info(ticker)
-                current_prices[ticker] = info.get("current_price", 0)
+                current_price = None
+                if isinstance(info, dict):
+                    current_price = info.get("current_price")
+                
+                if current_price is not None:
+                    # Use the live market price when available
+                    current_prices[ticker] = current_price
+                else:
+                    # Fall back to a quantity-weighted average purchase price, if possible
+                    ticker_holdings = [h for h in holdings if h.get("ticker") == ticker]
+                    total_qty = sum(h.get("quantity", 0) for h in ticker_holdings)
+                    if total_qty > 0:
+                        total_cost = sum(
+                            h.get("quantity", 0) * h.get("purchase_price", 0)
+                            for h in ticker_holdings
+                        )
+                        fallback_price = total_cost / total_qty if total_qty else None
+                        if fallback_price is not None:
+                            current_prices[ticker] = fallback_price
+                            tickers_valued_at_cost.append(ticker)
+                            logger.warning(
+                                "Falling back to purchase-price-based valuation for ticker %s "
+                                "because current price data is unavailable.",
+                                ticker,
+                            )
+                        else:
+                            tickers_without_price.append(ticker)
+                            logger.warning(
+                                "Unable to determine either current or fallback price for ticker %s. "
+                                "It will be excluded from current-value-based calculations.",
+                                ticker,
+                            )
+                    else:
+                        tickers_without_price.append(ticker)
+                        logger.warning(
+                            "No quantity available to value ticker %s. "
+                            "It will be excluded from current-value-based calculations.",
+                            ticker,
+                        )
+        
+        if tickers_valued_at_cost or tickers_without_price:
+            msg_parts = []
+            if tickers_valued_at_cost:
+                msg_parts.append(
+                    "valued at their purchase price: "
+                    + ", ".join(sorted(set(tickers_valued_at_cost)))
+                )
+            if tickers_without_price:
+                msg_parts.append(
+                    "excluded from current-value-based calculations due to missing data: "
+                    + ", ".join(sorted(set(tickers_without_price)))
+                )
+            st.warning(
+                "Some tickers did not have up-to-date price data and were handled specially: "
+                + "; ".join(msg_parts)
+            )
         
         # Calculate portfolio metrics
         portfolio_metrics = portfolio.calculate_portfolio_value(current_prices)
