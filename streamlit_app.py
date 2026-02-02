@@ -67,7 +67,6 @@ def render_market_overview(config, data_fetcher):
     
     for col, (name, data) in zip(cols, indices_data.items()):
         with col:
-            change_color = "green" if data["change"] >= 0 else "red"
             st.metric(
                 label=name,
                 value=f"{data['value']:.2f}",
