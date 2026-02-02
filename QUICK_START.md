@@ -93,6 +93,7 @@ Save the refresh token securely.
 2. Click "Fork" button
 3. Clone your fork:
    ```bash
+   # Note: Repository name is "trading-dashboard" (historical) but contains YouTube Shorts automation
    git clone https://github.com/YOUR_USERNAME/trading-dashboard.git
    cd trading-dashboard
    ```

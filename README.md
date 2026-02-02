@@ -74,6 +74,7 @@ A fully automated GitHub-based system that detects viral patterns, generates con
 ### Step 1: Fork and Clone
 
 ```bash
+# Note: Repository name is "trading-dashboard" but contains YouTube Shorts automation system
 git clone https://github.com/YOUR_USERNAME/trading-dashboard.git
 cd trading-dashboard
 ```
