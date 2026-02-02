@@ -1,6 +1,5 @@
 """Tests for utility functions."""
 
-import pytest
 import yaml
 from pathlib import Path
 from src.utils import (
