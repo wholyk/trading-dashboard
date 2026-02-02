@@ -122,7 +122,7 @@ jobs:
             "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "success_count": ${{ steps.upload.outputs.success_count }},
             "fail_count": ${{ steps.upload.outputs.fail_count }},
-            "video_ids": $(cat data/published_videos.json | jq -c '.')
+            "video_ids": $(if [ -f data/published_videos.json ]; then jq -c '.' data/published_videos.json 2>/dev/null || echo '[]'; else echo '[]'; fi)
           }
           EOF
       
