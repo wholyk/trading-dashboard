@@ -54,8 +54,12 @@ def load_config(config_path: str = "config.yaml") -> Dict[str, Any]:
         # Try the example file
         example_file = Path(f"{config_path}.example")
         if example_file.exists():
-            return load_config(str(example_file))
-        raise FileNotFoundError(f"Configuration file not found: {config_path}")
+            config_file = example_file
+        else:
+            raise FileNotFoundError(
+                f"Configuration file not found: {config_path} "
+                f"(also tried example file: {example_file})"
+            )
     
     try:
         with open(config_file, 'r') as f:
