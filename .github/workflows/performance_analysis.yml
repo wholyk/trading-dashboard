@@ -1,0 +1,140 @@
+name: Performance Analysis
+
+on:
+  schedule:
+    # Run daily at midnight UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+env:
+  YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+  YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+  YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+
+jobs:
+  analyze-performance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Fetch video analytics
+        id: fetch-analytics
+        run: |
+          python src/learning/performance_tracker.py \
+            --lookback-days 30
+          echo "videos_analyzed=$(cat data/metrics/video_performance.json | jq 'length')" >> $GITHUB_OUTPUT
+      
+      - name: Identify winners and losers
+        if: steps.fetch-analytics.outputs.videos_analyzed > 0
+        id: identify-winners
+        run: |
+          python src/learning/winner_identifier.py
+          echo "winner_count=$(cat data/metrics/winners.json | jq 'length')" >> $GITHUB_OUTPUT
+      
+      - name: Run auto-optimizer
+        if: steps.identify-winners.outputs.winner_count > 0
+        run: |
+          python src/learning/auto_optimizer.py
+      
+      - name: Generate performance report
+        if: always()
+        run: |
+          python src/utils/report_generator.py \
+            --type performance \
+            --output /tmp/performance_report.md
+      
+      - name: Save performance metrics
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-metrics
+          path: |
+            data/metrics/
+            /tmp/performance_report.md
+          retention-days: 90
+      
+      - name: Create performance summary
+        if: always()
+        run: |
+          echo "## Performance Analysis Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Videos analyzed: ${{ steps.fetch-analytics.outputs.videos_analyzed }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Winners identified: ${{ steps.identify-winners.outputs.winner_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f data/metrics/aggregate_stats.json ]; then
+            echo "### Aggregate Stats:" >> $GITHUB_STEP_SUMMARY
+            jq -r '"- Average CTR: \(.avg_ctr)%"' data/metrics/aggregate_stats.json >> $GITHUB_STEP_SUMMARY
+            jq -r '"- Average Retention: \(.avg_retention)%"' data/metrics/aggregate_stats.json >> $GITHUB_STEP_SUMMARY
+            jq -r '"- Average RPM: $\(.avg_rpm)"' data/metrics/aggregate_stats.json >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      - name: Check for quality drift
+        id: quality-check
+        run: |
+          python src/learning/quality_drift_detector.py
+          echo "drift_detected=$?" >> $GITHUB_OUTPUT
+      
+      - name: Create alert on quality drift
+        if: steps.quality-check.outputs.drift_detected == '1'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '⚠️ Quality Drift Detected',
+              body: `Performance metrics have declined significantly.
+              
+              The system has detected a drop in:
+              - CTR (Click-through rate)
+              - Average view duration
+              - Overall engagement
+              
+              **Recommended actions:**
+              1. Review recent pattern changes
+              2. Check for algorithm updates
+              3. Consider scaling down temporarily
+              
+              See performance report for details.`,
+              labels: ['alert', 'quality-drift']
+            });
+      
+      - name: Check monetization status
+        id: monetization-check
+        run: |
+          python src/utils/monetization_checker.py
+          echo "eligible=$?" >> $GITHUB_OUTPUT
+      
+      - name: Enable monetization features
+        if: steps.monetization-check.outputs.eligible == '0'
+        run: |
+          # Auto-enable monetization features in config
+          yq eval '.monetization.enabled = true' -i config/system_config.yaml
+          
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+          git add config/system_config.yaml
+          git commit -m "Auto-enable monetization features"
+          git push
+      
+      - name: Update cost tracking
+        if: always()
+        run: |
+          python src/utils/cost_tracker.py \
+            --operation analytics \
+            --count ${{ steps.fetch-analytics.outputs.videos_analyzed }}

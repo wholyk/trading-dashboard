@@ -1,0 +1,193 @@
+name: Upload Automation
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Workflow run ID with video artifacts'
+        required: true
+        type: string
+
+env:
+  YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+  YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+  YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+
+jobs:
+  upload-videos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    
+    # Limit concurrent uploads to respect YouTube quota
+    concurrency:
+      group: youtube-upload
+      cancel-in-progress: false
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Check YouTube API quota
+        id: quota-check
+        run: |
+          python src/utils/check_quota.py --operation upload
+          echo "quota_ok=$?" >> $GITHUB_OUTPUT
+      
+      - name: Download video artifacts
+        if: steps.quota-check.outputs.quota_ok == '0'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const runId = ${{ github.event.inputs.run_id }};
+            
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: runId
+            });
+            
+            const videoArtifacts = artifacts.data.artifacts.filter(a => 
+              a.name.startsWith('video-job-')
+            );
+            
+            console.log(`Downloading ${videoArtifacts.length} video artifacts`);
+            
+            for (const artifact of videoArtifacts) {
+              const download = await github.rest.actions.downloadArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: artifact.id,
+                archive_format: 'zip'
+              });
+              
+              const fs = require('fs');
+              fs.writeFileSync(`/tmp/${artifact.name}.zip`, Buffer.from(download.data));
+            }
+      
+      - name: Extract artifacts
+        run: |
+          mkdir -p /tmp/videos
+          for zip in /tmp/video-job-*.zip; do
+            unzip -q "$zip" -d /tmp/videos/
+          done
+      
+      - name: Upload videos to YouTube
+        id: upload
+        run: |
+          SUCCESS_COUNT=0
+          FAIL_COUNT=0
+          
+          for video in /tmp/videos/*.mp4; do
+            if [ -f "$video" ]; then
+              METADATA="${video%.mp4}.json"
+              
+              echo "Uploading: $video"
+              if python src/publication/youtube_uploader.py \
+                --video-file "$video" \
+                --metadata-file "$METADATA"; then
+                SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+              else
+                FAIL_COUNT=$((FAIL_COUNT + 1))
+              fi
+              
+              # Rate limiting: Wait 10 seconds between uploads
+              sleep 10
+            fi
+          done
+          
+          echo "success_count=$SUCCESS_COUNT" >> $GITHUB_OUTPUT
+          echo "fail_count=$FAIL_COUNT" >> $GITHUB_OUTPUT
+          
+          if [ $SUCCESS_COUNT -eq 0 ]; then
+            exit 1
+          fi
+      
+      - name: Save upload report
+        if: always()
+        run: |
+          cat > /tmp/upload_report.json <<EOF
+          {
+            "run_id": "${{ github.event.inputs.run_id }}",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "success_count": ${{ steps.upload.outputs.success_count }},
+            "fail_count": ${{ steps.upload.outputs.fail_count }},
+            "video_ids": $(cat data/published_videos.json | jq -c '.')
+          }
+          EOF
+      
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: upload-report
+          path: /tmp/upload_report.json
+          retention-days: 30
+      
+      - name: Schedule performance tracking
+        if: steps.upload.outputs.success_count > 0
+        uses: actions/github-script@v6
+        with:
+          script: |
+            // Trigger performance analysis after 24 hours
+            const delay = 24 * 60 * 60 * 1000; // 24 hours in ms
+            
+            console.log('Performance tracking will run in 24 hours');
+            
+            // Note: GitHub Actions doesn't support delayed triggers
+            // Instead, the performance analysis workflow runs daily
+            // and checks all videos published in last 48 hours
+      
+      - name: Create upload summary
+        if: always()
+        run: |
+          echo "## Upload Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Videos uploaded successfully: ${{ steps.upload.outputs.success_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Videos failed: ${{ steps.upload.outputs.fail_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f data/published_videos.json ]; then
+            echo "### Published Videos:" >> $GITHUB_STEP_SUMMARY
+            jq -r '.[] | "- [\(.title)](\(.url))"' data/published_videos.json >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      - name: Create alert on failure
+        if: failure()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 Upload Failed',
+              body: `Video upload workflow failed.
+              
+              **Run:** ${context.runId}
+              **Source Run:** ${{ github.event.inputs.run_id }}
+              
+              Possible causes:
+              - YouTube API quota exceeded
+              - Authentication failure
+              - Network issues
+              
+              Check the workflow logs for details.`,
+              labels: ['alert', 'upload-failure']
+            });
+      
+      - name: Update cost tracking
+        if: always()
+        run: |
+          python src/utils/cost_tracker.py \
+            --operation upload \
+            --count ${{ steps.upload.outputs.success_count }}

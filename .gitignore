@@ -1,4 +1,37 @@
-﻿.venv/
+# Python
+.venv/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Data directories (generated at runtime)
+data/
+!data/.gitkeep
+
+# Temporary files
+/tmp/
+*.tmp
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets (never commit)
+.env
+secrets.yaml
+*.pem
+*.key
+
+# Streamlit (legacy)
 .streamlit/
