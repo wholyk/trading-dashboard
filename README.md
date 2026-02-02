@@ -39,12 +39,9 @@ A fully automated GitHub-based system that detects viral patterns, generates con
 │   │   ├── performance_tracker.py
 │   │   └── auto_optimizer.py
 │   └── utils/                  # Shared utilities
-│       ├── youtube_api.py
-│       ├── cost_tracker.py
-│       └── logger.py
+│       └── cost_tracker.py     # Cost monitoring utilities
 ├── config/
 │   ├── system_config.yaml      # Main system configuration
-│   ├── niche_config.yaml       # Niche-specific settings
 │   └── secrets.example.yaml    # Example secrets file
 ├── templates/
 │   ├── scripts/                # Winning script templates
