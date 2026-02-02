@@ -1,7 +1,6 @@
 """Tests for portfolio management."""
 
 import pytest
-from pathlib import Path
 from src.portfolio import Portfolio, Watchlist
 import logging
 
