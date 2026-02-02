@@ -1,7 +1,6 @@
 """Tests for data fetching functionality."""
 
 import pytest
-import pandas as pd
 from src.data_fetcher import DataFetcher
 import logging
 
