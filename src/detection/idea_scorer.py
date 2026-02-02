@@ -10,7 +10,7 @@ import os
 import sys
 import json
 import yaml
-from datetime import datetime, timedelta
+from datetime import datetime
 
 def load_config():
     """Load system configuration"""
