@@ -68,12 +68,13 @@ class TechnicalIndicators:
         """
         try:
             delta = data[column].diff()
-            gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-            
-            rs = gain / loss.replace(0, np.nan)
+            gain = delta.where(delta > 0, 0.0)
+            loss = -delta.where(delta < 0, 0.0)
+            avg_gain = gain.ewm(alpha=1 / period, adjust=False).mean()
+            avg_loss = loss.ewm(alpha=1 / period, adjust=False).mean()
+
+            rs = avg_gain / avg_loss.replace(0, np.nan)
             rsi = 100 - (100 / (1 + rs))
-            
             return rsi.fillna(50)  # Fill NaN with neutral value
         except Exception as e:
             self.logger.error(f"Error calculating RSI: {e}")
