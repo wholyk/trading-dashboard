@@ -463,8 +463,8 @@ def render_watchlist(config, logger, data_fetcher, watchlist):
             
             # Format for display
             display_df = watchlist_df.copy()
-            display_df["Price"] = display_df["Price"].apply(lambda x: format_currency(x))
-            display_df["Change"] = display_df["Change"].apply(lambda x: format_currency(x))
+            display_df["Price"] = display_df["Price"].apply(format_currency)
+            display_df["Change"] = display_df["Change"].apply(format_currency)
             display_df["Change %"] = display_df["Change %"].apply(lambda x: f"{x:+.2f}%")
             display_df["Volume"] = display_df["Volume"].apply(lambda x: f"{x:,}")
             display_df["Market Cap"] = display_df["Market Cap"].apply(
