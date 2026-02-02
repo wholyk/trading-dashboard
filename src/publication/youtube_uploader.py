@@ -10,7 +10,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--video-file', required=True)
     parser.add_argument('--metadata-file', required=True)
-    args = parser.parse_args()
+    parser.parse_args()
     
     print("[STUB] Uploading video to YouTube")
     print("✓ Upload complete (stub)")
