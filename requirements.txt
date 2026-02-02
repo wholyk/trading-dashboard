@@ -1,5 +1,33 @@
-﻿streamlit>=1.28
-yfinance>=0.2.40
+﻿# Core dependencies
+streamlit>=1.28
 pandas>=2.1.0
 numpy>=1.25.0
-matplotlib>=3.8.0
+
+# Video processing
+moviepy>=1.0.3
+opencv-python>=4.8.0
+pillow>=10.0.0
+
+# Audio/speech
+whisper>=1.1.10
+openai-whisper>=20230918
+
+# Database
+sqlalchemy>=2.0.0
+
+# File watching
+watchdog>=3.0.0
+
+# YouTube API
+google-api-python-client>=2.100.0
+google-auth>=2.23.0
+google-auth-oauthlib>=1.1.0
+google-auth-httplib2>=0.1.1
+
+# Utilities
+pyyaml>=6.0
+python-dotenv>=1.0.0
+requests>=2.31.0
+
+# Logging
+colorlog>=6.7.0
