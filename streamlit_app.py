@@ -266,10 +266,10 @@ def render_portfolio(config, logger, data_fetcher, portfolio):
                 else:
                     # Fall back to a quantity-weighted average purchase price, if possible
                     ticker_holdings = [h for h in holdings if h.get("ticker") == ticker]
-                    total_qty = sum(h.get("quantity", 0) for h in ticker_holdings)
+                    total_qty = sum(h.get("shares", 0) for h in ticker_holdings)
                     if total_qty > 0:
                         total_cost = sum(
-                            h.get("quantity", 0) * h.get("purchase_price", 0)
+                            h.get("shares", 0) * h.get("purchase_price", 0)
                             for h in ticker_holdings
                         )
                         fallback_price = total_cost / total_qty if total_qty else None
