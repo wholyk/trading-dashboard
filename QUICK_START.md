@@ -44,7 +44,7 @@ cd trading-dashboard
 # Install dependencies
 pip install -r requirements.txt
 
-# Run OAuth setup helper (creates this if needed)
+# Run inline OAuth setup to obtain a YouTube refresh token
 python -c "
 from google_auth_oauthlib.flow import InstalledAppFlow
 
