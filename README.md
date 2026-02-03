@@ -186,4 +186,4 @@ For issues and questions:
 
 - Built with [Streamlit](https://streamlit.io/)
 - Market data from [Yahoo Finance](https://finance.yahoo.com/)
-- Technical analysis library: [pandas-ta](https://github.com/twopirllc/pandas-ta)
+- Technical analysis indicators implemented directly with pandas and NumPy
