@@ -48,5 +48,4 @@ def test_get_color_for_change():
     """Test color selection for value changes."""
     assert get_color_for_change(5.0) == "green"
     assert get_color_for_change(-3.0) == "red"
-    # Zero change is treated as non-negative for display purposes and uses the positive (green) color.
     assert get_color_for_change(0) == "green"
