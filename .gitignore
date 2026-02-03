@@ -35,3 +35,29 @@ secrets.yaml
 
 # Streamlit (legacy)
 .streamlit/
+
+# ShortsFactory
+INBOX/long_videos/*
+INBOX/clips/*
+!INBOX/long_videos/.gitkeep
+!INBOX/clips/.gitkeep
+storage/
+database/*.db
+logs/*.log
+config/credentials.json
+config/token.json
+*.mp4
+*.mov
+*.avi
+*.mkv
+
+# ShortsFactory
+INBOX/long_videos/*
+INBOX/clips/*
+!INBOX/long_videos/.gitkeep
+!INBOX/clips/.gitkeep
+storage/
+database/*.db
+logs/*.log
+config/credentials.json
+config/token.json
