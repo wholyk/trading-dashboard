@@ -131,6 +131,11 @@ def main():
             json.dump(scored_ideas, f, indent=2)
         
         # Print summary
+        if not scored_ideas:
+            print("0 ideas scored. No scores to summarize.")
+            print("✓ Scoring complete")
+            return 0
+        
         scores = [idea['score'] for idea in scored_ideas]
         print(f"Score range: {min(scores)}-{max(scores)}")
         print(f"Average score: {sum(scores) / len(scores):.1f}")
