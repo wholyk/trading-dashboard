@@ -1,0 +1,13 @@
+# Blacklist Configuration
+# Patterns and keywords to reject automatically
+
+# Blacklisted patterns (e.g., overused or problematic)
+patterns: []
+
+# Blacklisted keywords (e.g., controversial topics)
+keywords:
+  - "crypto scam"
+  - "get rich quick"
+  - "fake news"
+
+# Add more as needed based on channel policy

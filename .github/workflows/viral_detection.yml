@@ -1,0 +1,116 @@
+name: Viral Pattern Detection
+
+on:
+  schedule:
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  detect-patterns:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Check YouTube API quota
+        id: quota-check
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+        run: |
+          python src/utils/check_quota.py
+          echo "quota_ok=$?" >> $GITHUB_OUTPUT
+      
+      - name: Run viral pattern detector
+        if: steps.quota-check.outputs.quota_ok == '0'
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+        run: |
+          python src/detection/viral_detector.py
+      
+      - name: Score ideas
+        if: success()
+        run: |
+          python src/detection/idea_scorer.py
+      
+      - name: Apply rejection gate
+        id: rejection-gate
+        run: |
+          python src/detection/rejection_gate.py
+          echo "approved_count=$(cat data/idea_queue.json | jq 'length')" >> $GITHUB_OUTPUT
+      
+      - name: Save approved ideas
+        if: steps.rejection-gate.outputs.approved_count > 0
+        uses: actions/upload-artifact@v3
+        with:
+          name: approved-ideas
+          path: data/idea_queue.json
+          retention-days: 7
+      
+      - name: Save rejected ideas log
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: rejected-ideas
+          path: data/rejected/
+          retention-days: 30
+      
+      - name: Trigger content generation
+        if: steps.rejection-gate.outputs.approved_count > 0
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const approvedCount = ${{ steps.rejection-gate.outputs.approved_count }};
+            console.log(`Triggering generation for ${approvedCount} approved ideas`);
+            
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'content_generation.yml',
+              ref: context.ref
+            });
+      
+      - name: Create summary
+        if: always()
+        run: |
+          echo "## Viral Detection Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Patterns detected: $(cat data/patterns_detected.json | jq 'length')" >> $GITHUB_STEP_SUMMARY
+          echo "- Ideas scored: $(cat data/ideas_scored.json | jq 'length')" >> $GITHUB_STEP_SUMMARY
+          echo "- Ideas approved: ${{ steps.rejection-gate.outputs.approved_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Ideas rejected: $(cat data/rejected/rejected_ideas.json | jq 'length')" >> $GITHUB_STEP_SUMMARY
+      
+      - name: Create alert on failure
+        if: failure()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 Viral Detection Failed',
+              body: `The viral pattern detection workflow failed.
+              
+              **Run:** ${context.runId}
+              **Commit:** ${context.sha}
+              
+              Please check the workflow logs for details.`,
+              labels: ['alert', 'viral-detection']
+            });

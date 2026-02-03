@@ -1,497 +1,676 @@
-# ShortsFactory Architecture
+# YouTube Shorts Automation System - Technical Architecture
 
 ## System Overview
 
-ShortsFactory is a business-grade, local automation system for YouTube Shorts production. It runs entirely on a single PC with explicit user permission and can scale to support multiple channels.
+This is a fully automated GitHub-based system that produces, publishes, and optimizes profitable YouTube Shorts at scale.
 
-## Architecture Principles
-
-1. **Local First**: Everything runs locally with no cloud dependencies
-2. **Explicit Permission**: No hidden operations, all actions are logged
-3. **Crash Safe**: All jobs are resumable after crashes or restarts
-4. **Observable**: Full audit trail with timestamps
-5. **Scalable**: Designed to scale from single PC to distributed system
-6. **Safe**: Multiple safety gates including human review
-
-## System Components
-
-### 1. Ingestion System (`shortsfactory/watcher.py`)
-
-**Purpose**: Automatically detect and queue new content
-
-**Watched Locations**:
-- `INBOX/long_videos/` - Long-form videos to extract clips from
-- `INBOX/clips/` - Pre-cut video clips
-- `INBOX/ideas.txt` - Text-based video ideas
-
-**Process**:
-1. File system watcher monitors INBOX folders
-2. New files trigger job creation
-3. Files are copied to `storage/originals` for backup
-4. Job record created in database with state=NEW
-
-**Key Features**:
-- Uses watchdog library for efficient file monitoring
-- Avoids processing temporary/incomplete files
-- Tracks processed ideas to prevent duplicates
-- Validates file types before processing
-
-### 2. Database Layer (`shortsfactory/core/database.py`)
-
-**Purpose**: Persistent job queue and state management
-
-**Technology**: SQLite with SQLAlchemy ORM
-
-**Schema**:
-
-```sql
--- jobs table
-CREATE TABLE jobs (
-    id INTEGER PRIMARY KEY,
-    created_at DATETIME,
-    updated_at DATETIME,
-    source_type VARCHAR(50),  -- 'long_video', 'clip', 'idea'
-    source_path VARCHAR(500),
-    source_idea TEXT,
-    state VARCHAR(50),  -- Job lifecycle state
-    state_data TEXT,  -- JSON for state-specific data
-    progress FLOAT,  -- 0-100%
-    error_message TEXT,
-    retry_count INTEGER,
-    
-    -- File paths
-    original_path VARCHAR(500),
-    cut_path VARCHAR(500),
-    formatted_path VARCHAR(500),
-    captioned_path VARCHAR(500),
-    final_path VARCHAR(500),
-    caption_file VARCHAR(500),
-    metadata_file VARCHAR(500),
-    
-    -- Metadata
-    title VARCHAR(100),
-    description TEXT,
-    hashtags TEXT,
-    duration_seconds FLOAT,
-    
-    -- Review
-    reviewed_at DATETIME,
-    reviewed_by VARCHAR(100),
-    review_notes TEXT,
-    
-    -- Publishing
-    uploaded_at DATETIME,
-    video_id VARCHAR(100),
-    video_url VARCHAR(500)
-);
-
--- activity_logs table
-CREATE TABLE activity_logs (
-    id INTEGER PRIMARY KEY,
-    timestamp DATETIME,
-    job_id INTEGER,
-    action VARCHAR(100),
-    details TEXT,
-    success BOOLEAN
-);
-```
-
-**Job States**:
-- `NEW` - Initial state after ingestion
-- `CUTTING` - Clip extraction in progress
-- `FORMATTING` - Converting to 9:16 format
-- `CAPTIONING` - Generating/burning captions
-- `METADATA` - Creating title/description/hashtags
-- `RENDERING` - Final export
-- `READY_FOR_REVIEW` - Awaiting human approval
-- `APPROVED` - Approved for upload
-- `REJECTED` - Rejected by reviewer
-- `UPLOADING` - Upload in progress
-- `PUBLISHED` - Successfully published
-- `FAILED` - Processing failed
-
-### 3. Worker System
-
-**Purpose**: Isolated, resumable processing units
-
-**Base Class** (`shortsfactory/workers/base.py`):
-- Defines worker interface
-- Handles retry logic
-- Manages state transitions
-- Provides failure handling
-
-**Worker Implementations**:
-
-#### CuttingWorker (`shortsfactory/workers/cutting.py`)
-- **Input State**: NEW
-- **Output State**: CUTTING → FORMATTING
-- **Purpose**: Extract clips from long videos
-- **Process**:
-  1. Load source video
-  2. Determine optimal clip duration (15-60 seconds)
-  3. Extract segment (currently from middle, could use AI)
-  4. Save to `storage/intermediate`
-
-#### FormattingWorker (`shortsfactory/workers/formatting.py`)
-- **Input State**: CUTTING
-- **Output State**: FORMATTING → CAPTIONING
-- **Purpose**: Convert to 9:16 vertical format
-- **Process**:
-  1. Load cut video
-  2. Scale to target resolution (1080x1920)
-  3. Crop/pad to exact dimensions
-  4. Maintain quality with proper bitrate
-  5. Save formatted version
-
-#### CaptionWorker (`shortsfactory/workers/caption.py`)
-- **Input State**: FORMATTING
-- **Output State**: CAPTIONING → METADATA
-- **Purpose**: Generate and burn captions
-- **Process**:
-  1. Generate caption text (placeholder for Whisper integration)
-  2. Save caption data as JSON
-  3. In production: burn captions using TextClip
-  4. Currently: passes through for MVP
-
-#### MetadataWorker (`shortsfactory/workers/metadata.py`)
-- **Input State**: CAPTIONING
-- **Output State**: METADATA → RENDERING
-- **Purpose**: Generate titles, descriptions, hashtags
-- **Process**:
-  1. Generate engaging title (max 100 chars)
-  2. Create description with call-to-action
-  3. Select relevant hashtags with randomization
-  4. Save metadata as JSON
-  5. Update job record
-
-#### RenderingWorker (`shortsfactory/workers/rendering.py`)
-- **Input State**: METADATA
-- **Output State**: RENDERING → READY_FOR_REVIEW
-- **Purpose**: Create final export
-- **Process**:
-  1. Finalize video file
-  2. Copy to `storage/finals`
-  3. Mark as ready for review
-  4. Set progress to 100%
-
-#### UploadWorker (`shortsfactory/workers/upload.py`)
-- **Input State**: APPROVED
-- **Output State**: UPLOADING → PUBLISHED
-- **Purpose**: Upload to YouTube with safety limits
-- **Features**:
-  - Rate limiting (configurable max per day)
-  - Minimum delay between uploads
-  - Randomized timing for natural behavior
-  - Retry logic for transient failures
-  - Currently stub implementation (safety)
-
-**Worker Manager** (`shortsfactory/workers/manager.py`):
-- Starts all workers in separate threads
-- Handles graceful shutdown on SIGINT/SIGTERM
-- Ensures workers stop cleanly
-
-### 4. Review System (`shortsfactory/dashboard/app.py`)
-
-**Purpose**: Human-in-the-loop quality control
-
-**Features**:
-- Video preview in browser
-- Display metadata (title, description, hashtags)
-- Three actions:
-  - ✅ **Approve** - Queue for upload
-  - ❌ **Reject** - Mark as rejected
-  - 🔄 **Reprocess** - Send back to start
-- Review notes for documentation
-- Enforces: **Nothing uploads without approval**
-
-**Access**: http://localhost:8501 (Streamlit)
-
-### 5. Dashboard (`shortsfactory/dashboard/app.py`)
-
-**Purpose**: System observability and control
-
-**Pages**:
-
-1. **Overview**
-   - Total jobs count
-   - Jobs by state breakdown
-   - Recent activity log
-   - System metrics
-
-2. **Job Queue**
-   - Filter by state
-   - View job details
-   - Track progress
-   - See errors
-
-3. **Review Queue**
-   - Preview videos
-   - Approve/reject/reprocess
-   - Add review notes
-   - **Main quality control interface**
-
-4. **Published**
-   - View published videos
-   - See video IDs and URLs
-   - Track publish dates
-
-5. **Failed Jobs**
-   - View failure reasons
-   - Retry failed jobs
-   - Debug information
-
-6. **Logs**
-   - Activity log viewer
-   - Filter by job
-   - Audit trail
-
-7. **Settings**
-   - View current configuration
-   - Configuration reference
-   - Instructions to modify
-
-### 6. Configuration System (`shortsfactory/core/config.py`)
-
-**File**: `config/settings.yaml`
-
-**Configuration Sections**:
-
-```yaml
-inbox:
-  long_videos: "INBOX/long_videos"
-  clips: "INBOX/clips"
-  ideas: "INBOX/ideas.txt"
-  watch_interval: 5  # seconds
-
-storage:
-  originals: "storage/originals"
-  intermediate: "storage/intermediate"
-  finals: "storage/finals"
-  captions: "storage/captions"
-  metadata: "storage/metadata"
-
-video:
-  target_width: 1080
-  target_height: 1920
-  fps: 30
-  max_duration: 60
-  min_duration: 15
-  video_codec: "libx264"
-  audio_codec: "aac"
-  bitrate: "8M"
-
-caption:
-  font_size: 48
-  font_color: "white"
-  bg_color: "black"
-  bg_opacity: 0.7
-  position: "bottom"
-  max_words_per_line: 6
-
-upload:
-  enabled: false  # Must be explicitly enabled
-  min_delay_minutes: 60
-  max_delay_minutes: 180
-  max_per_day: 5
-  privacy_status: "private"
-  category_id: "22"
-  made_for_kids: false
-
-worker:
-  max_retries: 3
-  retry_delay: 60
-  timeout: 600
-  parallel_workers: 1
-
-dashboard:
-  host: "localhost"
-  port: 8501
-  title: "ShortsFactory Dashboard"
-```
-
-### 7. Logging System (`shortsfactory/core/logger.py`)
-
-**Purpose**: Comprehensive audit trail
-
-**Features**:
-- Console output with colors
-- File logging (main log + daily log)
-- Structured logging with context
-- Job-specific events
-- Worker-specific events
-- Exception tracking with stack traces
-
-**Log Locations**:
-- `logs/shortsfactory.log` - Main log file
-- `logs/shortsfactory_YYYY-MM-DD.log` - Daily log files
-
-### 8. Storage Organization
+## Architecture Diagram (Text)
 
 ```
-storage/
-├── originals/       # Backup of uploaded files
-├── intermediate/    # Work-in-progress files
-│   ├── job_1_cut.mp4
-│   └── job_1_formatted.mp4
-├── finals/          # Final exported videos
-│   └── job_1_final.mp4
-├── captions/        # Caption data (JSON)
-│   └── job_1_captions.json
-└── metadata/        # Metadata (JSON)
-    └── job_1_metadata.json
+┌─────────────────────────────────────────────────────────────────┐
+│                        GITHUB (Control Center)                   │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │                   DETECTION LAYER                         │  │
+│  │                                                            │  │
+│  │  ┌──────────────┐      ┌──────────────┐                 │  │
+│  │  │ Viral Pattern│─────▶│ Idea Scoring │                 │  │
+│  │  │   Detector   │      │  (0-100)     │                 │  │
+│  │  └──────────────┘      └──────┬───────┘                 │  │
+│  │         │                      │                          │  │
+│  │         │                      ▼                          │  │
+│  │         │              ┌──────────────┐                  │  │
+│  │         │              │ Rejection    │ ◀─ Threshold=75  │  │
+│  │         │              │ Gate         │                  │  │
+│  │         │              └──────┬───────┘                  │  │
+│  │         │                     │                          │  │
+│  │         │          ┌──────────┴────────────┐            │  │
+│  │         │          │   PASS (Score ≥ 75)   │            │  │
+│  │         │          └──────────┬────────────┘            │  │
+│  └─────────┼────────────────────┼─────────────────────────┘  │
+│            │                     │                            │
+│  ┌─────────┼────────────────────┼─────────────────────────┐  │
+│  │         │     GENERATION LAYER│                         │  │
+│  │         ▼                     ▼                         │  │
+│  │  ┌──────────────┐      ┌──────────────┐               │  │
+│  │  │ Script Gen   │◀─────│ Context      │               │  │
+│  │  │ (GPT-4)      │      │ Builder      │               │  │
+│  │  └──────┬───────┘      └──────────────┘               │  │
+│  │         │                                               │  │
+│  │         ▼                                               │  │
+│  │  ┌──────────────┐                                      │  │
+│  │  │ Visual Gen   │◀───── stock API / generation         │  │
+│  │  │ (FFmpeg)     │                                      │  │
+│  │  └──────┬───────┘                                      │  │
+│  │         │                                               │  │
+│  │         ▼                                               │  │
+│  │  ┌──────────────┐                                      │  │
+│  │  │ Caption +    │◀───── SEO optimizer                  │  │
+│  │  │ Metadata Gen │                                      │  │
+│  │  └──────┬───────┘                                      │  │
+│  │         │                                               │  │
+│  │         ▼                                               │  │
+│  │  ┌──────────────┐                                      │  │
+│  │  │ Quality      │◀───── validation rules               │  │
+│  │  │ Validator    │                                      │  │
+│  │  └──────┬───────┘                                      │  │
+│  └─────────┼─────────────────────────────────────────────┘  │
+│            │                                                 │
+│  ┌─────────┼─────────────────────────────────────────────┐  │
+│  │         │      PUBLICATION LAYER                       │  │
+│  │         ▼                                               │  │
+│  │  ┌──────────────┐                                      │  │
+│  │  │ YouTube API  │◀───── OAuth credentials              │  │
+│  │  │ Uploader     │                                      │  │
+│  │  └──────┬───────┘                                      │  │
+│  │         │                                               │  │
+│  │         ▼                                               │  │
+│  │  ┌──────────────┐                                      │  │
+│  │  │ Published    │                                      │  │
+│  │  │ Video        │                                      │  │
+│  │  └──────┬───────┘                                      │  │
+│  └─────────┼─────────────────────────────────────────────┘  │
+│            │                                                 │
+│  ┌─────────┼─────────────────────────────────────────────┐  │
+│  │         │      LEARNING LAYER                          │  │
+│  │         ▼                                               │  │
+│  │  ┌──────────────┐      ┌──────────────┐              │  │
+│  │  │ Performance  │─────▶│ Winner       │              │  │
+│  │  │ Tracker      │      │ Identifier   │              │  │
+│  │  └──────────────┘      └──────┬───────┘              │  │
+│  │                               │                        │  │
+│  │                               ▼                        │  │
+│  │                        ┌──────────────┐               │  │
+│  │                        │ Auto-Optimize│               │  │
+│  │                        │ (Double Down)│               │  │
+│  │                        └──────┬───────┘               │  │
+│  │                               │                        │  │
+│  │         ┌─────────────────────┘                        │  │
+│  │         │    (Feedback Loop to Detection)              │  │
+│  └─────────┼──────────────────────────────────────────────┘  │
+│            │                                                 │
+│  ┌─────────┼─────────────────────────────────────────────┐  │
+│  │         │      SCALING LAYER                           │  │
+│  │         ▼                                               │  │
+│  │  ┌──────────────┐                                      │  │
+│  │  │ Parallel     │◀───── Matrix strategy                │  │
+│  │  │ Orchestrator │       (10 concurrent jobs)           │  │
+│  │  └──────────────┘                                      │  │
+│  │                                                         │  │
+│  │  1x → 3x → 10x (no quality loss)                      │  │
+│  └─────────────────────────────────────────────────────────┘  │
+│                                                               │
+└───────────────────────────────────────────────────────────────┘
 ```
 
 ## Data Flow
 
+### Phase 1: Detection (Every 6 hours)
 ```
-[User drops file in INBOX]
-           ↓
-[InboxWatcher detects file]
-           ↓
-[Job created with state=NEW]
-           ↓
-[CuttingWorker] → state=FORMATTING
-           ↓
-[FormattingWorker] → state=CAPTIONING
-           ↓
-[CaptionWorker] → state=METADATA
-           ↓
-[MetadataWorker] → state=RENDERING
-           ↓
-[RenderingWorker] → state=READY_FOR_REVIEW
-           ↓
-[Human reviews in Dashboard]
-           ↓
-     [Approve/Reject/Reprocess]
-           ↓
-[If approved: state=APPROVED]
-           ↓
-[UploadWorker] → state=PUBLISHED
-           ↓
-[Video live on YouTube]
+Cron Trigger → Viral Pattern Detector → YouTube API → 
+Analyze Top 100 Shorts in Niche → Extract Patterns →
+Score Ideas (0-100) → Rejection Gate (threshold=75) →
+Store Approved Ideas → Trigger Generation
 ```
 
-## Safety Features
+### Phase 2: Generation (On approved idea)
+```
+Approved Idea → Context Builder → Script Generator (GPT-4) →
+Visual Generator (FFmpeg + Stock API) → Caption Generator →
+Metadata Generator → Quality Validator → Store Final Video
+```
 
-1. **Review Gate**: Nothing uploads without explicit approval
-2. **Rate Limiting**: Configurable upload limits per day
-3. **Randomized Timing**: Natural posting patterns
-4. **Retry Logic**: Graceful handling of transient failures
-5. **Full Audit Trail**: Every action logged with timestamp
-6. **Crash Recovery**: Jobs resume from last known state
-7. **Graceful Shutdown**: Clean stop on CTRL+C
-8. **No Hidden Operations**: Everything is observable
+### Phase 3: Publication (On validated video)
+```
+Final Video → YouTube API Uploader → Publish →
+Store Video ID → Schedule Performance Check
+```
 
-## Scalability Design
+### Phase 4: Learning (24 hours after publish)
+```
+Published Video → Performance Tracker → Fetch Analytics →
+Calculate Metrics (CTR, Retention, RPM) → Identify Winners →
+Update Pattern Weights → Trigger More Similar Content
+```
 
-### Current (Single PC)
-- All components run locally
-- SQLite database
-- Single worker threads
-- File-based storage
+## Component Details
 
-### Future Scaling Options
+### 1. Viral Pattern Detector
+**Location:** `src/detection/viral_detector.py`
 
-1. **Multiple Channels**
-   - Add channel ID to job records
-   - Channel-specific templates
-   - Separate upload credentials
+**Function:** Scans YouTube Shorts in target niche, identifies patterns
 
-2. **Distributed Workers**
-   - Replace SQLite with PostgreSQL
-   - Workers on separate machines
-   - Shared network storage or S3
+**Inputs:**
+- Niche keywords (config)
+- Timeframe (last 7 days)
+- Minimum view threshold
 
-3. **Analytics Integration**
-   - Collect performance metrics
-   - Feed back into metadata generation
-   - A/B testing support
+**Outputs:**
+- Pattern dictionary with frequency scores
+- Top performing topics
+- Hook structures
+- Visual styles
 
-4. **Advanced AI**
-   - Better clip selection (hook detection)
-   - Real caption generation (Whisper)
-   - AI-powered metadata optimization
+**API Calls:**
+- YouTube Data API v3
+- Rate limit: 10,000 units/day
+- Caching: 6 hours
 
-## Extension Points
+### 2. Idea Scoring Engine
+**Location:** `src/detection/idea_scorer.py`
 
-### Adding a New Worker
-1. Extend `Worker` base class
-2. Implement required methods
-3. Add to `WorkerManager`
-4. Add new state to `JobState` enum
+**Function:** Assigns confidence score 0-100 to each idea
 
-### Adding Analytics
-1. Create analytics collector worker
-2. Store metrics in database
-3. Add dashboard page for metrics
-4. Feed data back to metadata worker
+**Scoring Algorithm:**
+```python
+score = (
+    pattern_frequency * 0.30 +      # How often this pattern works
+    recency_weight * 0.20 +          # How recent successful examples are
+    engagement_rate * 0.25 +         # Average engagement of similar shorts
+    competition_score * 0.15 +       # Market saturation (inverse)
+    audience_fit * 0.10              # Match with channel's audience
+)
+```
 
-### Multi-Channel Support
-1. Add `channel_id` to Job model
-2. Create channel configuration system
-3. Update upload worker for multiple credentials
-4. Add channel selector in dashboard
+**Rejection Logic:**
+- Score < 75: Reject immediately
+- Score 75-85: Queue (produce if queue empty)
+- Score > 85: Priority queue (produce first)
 
-## Security Considerations
+### 3. Rejection Gate
+**Location:** `src/detection/rejection_gate.py`
 
-1. **Credentials**: Store YouTube API credentials securely
-2. **Privacy**: All data stays local by default
-3. **Permissions**: Explicit user consent required
-4. **Transparency**: Open source, auditable code
-5. **Compliance**: Respects platform terms of service
+**Function:** Hard filter - no human override
+
+**Rules:**
+1. Score must be ≥ 75 (configurable)
+2. No duplicate ideas in last 30 days
+3. No blacklisted keywords
+4. Must have successful reference examples (≥3)
+5. Estimated production cost < budget threshold
+6. Content fits platform guidelines (automated check)
+
+**Failure Mode:** Rejected ideas logged to `data/rejected.json` with reason
+
+### 4. Script Generator
+**Location:** `src/generation/script_generator.py`
+
+**Function:** Generates video script from approved idea
+
+**Process:**
+1. Load winning script templates
+2. Inject idea-specific context
+3. Call GPT-4 API with strict prompt
+4. Validate output (length, structure, hooks)
+5. Return script or fail
+
+**Prompt Template:**
+```
+Role: Viral YouTube Shorts scriptwriter
+Niche: {niche}
+Pattern: {pattern}
+Constraint: 45-60 seconds when spoken
+Required: Hook in first 3 seconds
+Required: Pattern interrupt every 12 seconds
+Required: Clear CTA
+Reference: {winning_examples}
+Output: JSON with segments
+```
+
+### 5. Visual Generator
+**Location:** `src/generation/visual_generator.py`
+
+**Function:** Creates video file from script
+
+**Process:**
+1. Parse script segments
+2. Source visuals (Pexels API / generated)
+3. Add text overlays (FFmpeg)
+4. Add background music (royalty-free)
+5. Render 9:16 aspect ratio
+6. Output MP4 (max 60 sec, <100MB)
+
+**Dependencies:**
+- FFmpeg (installed in runner)
+- Pexels API (free tier: 200 requests/hour)
+- Font files for captions
+
+### 6. Quality Validator
+**Location:** `src/generation/quality_validator.py`
+
+**Function:** Checks video meets standards before upload
+
+**Validation Rules:**
+1. Duration: 15-60 seconds
+2. Resolution: 1080x1920 (9:16)
+3. File size: < 100MB
+4. Audio levels: -14 LUFS ± 1
+5. First frame: engaging (not black)
+6. Caption readability: contrast ratio > 4.5:1
+7. No copyright-flagged content (audio fingerprinting)
+
+**Failure Mode:** Failed videos stored in `data/failed_qa/` with report
+
+### 7. YouTube Uploader
+**Location:** `src/publication/youtube_uploader.py`
+
+**Function:** Uploads video to YouTube via API
+
+**Process:**
+1. Load OAuth credentials (GitHub Secrets)
+2. Prepare metadata (title, description, tags)
+3. Upload video (resumable upload)
+4. Set privacy: Public
+5. Store video ID
+6. Log publish timestamp
+
+**Rate Limits:**
+- 6 uploads per day (API quota)
+- Handled by GitHub Actions scheduling
+
+### 8. Performance Tracker
+**Location:** `src/learning/performance_tracker.py`
+
+**Function:** Collects analytics for published videos
+
+**Metrics:**
+- Views (24h, 7d, 30d)
+- CTR (click-through rate)
+- Average view duration
+- Likes/Comments ratio
+- RPM (revenue per mille)
+- Traffic sources
+
+**Winner Threshold:**
+- Top 20% of channel performance
+- CTR > 5%
+- Retention > 50%
+- RPM > channel average
+
+### 9. Auto-Optimizer
+**Location:** `src/learning/auto_optimizer.py`
+
+**Function:** Doubles down on winners
+
+**Process:**
+1. Identify winning videos (daily)
+2. Extract common patterns
+3. Increase pattern weights by 2x
+4. Generate 3 variations of winner
+5. Queue for production
+6. Update niche keywords
+
+**Feedback Loop:**
+- Winner patterns → Detection layer weights
+- Failing patterns → Penalty (weight * 0.5)
+
+## GitHub Actions Workflows
+
+### Workflow 1: Viral Detection
+**File:** `.github/workflows/viral_detection.yml`
+
+**Trigger:** Cron (every 6 hours: 0 */6 * * *)
+
+**Steps:**
+1. Checkout code
+2. Install dependencies
+3. Run viral detector
+4. Run idea scorer
+5. Run rejection gate
+6. Store approved ideas (artifact)
+7. Trigger generation (if ideas approved)
+
+**Failure Conditions:**
+- API rate limit exceeded → Wait and retry
+- No ideas pass gate → Log warning (not error)
+- Zero patterns detected → Alert (potential API issue)
+
+### Workflow 2: Content Generation
+**File:** `.github/workflows/content_generation.yml`
+
+**Trigger:** 
+- Workflow dispatch (from viral detection)
+- Manual trigger (for testing)
+
+**Strategy:** Matrix for parallel jobs (1x, 3x, 10x)
+
+**Steps:**
+1. Load approved idea from queue
+2. Generate script
+3. Generate visuals
+4. Generate captions
+5. Run quality validator
+6. Store video (artifact)
+7. Trigger upload
+
+**Failure Conditions:**
+- Script generation fails → Retry once, then skip
+- Visual generation fails → Store error, move to next
+- Quality validation fails → Log to failed_qa, reject
+
+**Parallelization:**
+- 10x mode: Run 10 jobs concurrently
+- Each job processes different idea
+- No shared state (fully isolated)
+
+### Workflow 3: Upload Automation
+**File:** `.github/workflows/upload_automation.yml`
+
+**Trigger:** 
+- On successful generation
+- Manual trigger with video path
+
+**Steps:**
+1. Load video artifact
+2. Load metadata
+3. Authenticate YouTube API
+4. Upload video (resumable)
+5. Verify upload success
+6. Store video ID
+7. Schedule performance tracking (24h delay)
+
+**Failure Conditions:**
+- Auth failure → Alert (credentials issue)
+- Upload failure → Retry up to 3 times with exponential backoff
+- Quota exceeded → Queue for next day
+
+### Workflow 4: Performance Analysis
+**File:** `.github/workflows/performance_analysis.yml`
+
+**Trigger:** 
+- Cron (daily at 00:00 UTC)
+- Manual trigger
+
+**Steps:**
+1. Fetch all published videos (last 30 days)
+2. Collect analytics for each
+3. Identify winners
+4. Run auto-optimizer
+5. Update pattern weights
+6. Generate performance report (artifact)
+
+**Failure Conditions:**
+- Analytics API fails → Skip this run, alert
+- No winners identified → Log info (not error)
+
+### Workflow 5: Scaling Orchestrator
+**File:** `.github/workflows/scaling_orchestrator.yml`
+
+**Trigger:** Manual with input (scale_factor: 1, 3, or 10)
+
+**Steps:**
+1. Validate scale factor
+2. Check resource availability (API quotas)
+3. Trigger content generation workflow N times
+4. Monitor parallel jobs
+5. Aggregate results
+6. Report success/failure counts
+
+**Resource Management:**
+- 1x: 1 video/run
+- 3x: 3 videos/run (sequential)
+- 10x: 10 videos/run (parallel matrix)
+
+**Quota Protection:**
+- Check YouTube API quota before scaling
+- Fail fast if quota insufficient
+- Automatically adjust scale factor if needed
+
+## Enforcement Mechanisms
+
+### 1. Rejection Gate Enforcement
+- **Mechanism:** GitHub Action step must exit 0 to proceed
+- **Bypass:** Impossible without code change and PR review
+- **Logging:** All rejections logged to issues (auto-created)
+
+### 2. Quality Gate Enforcement
+- **Mechanism:** Quality validator returns pass/fail
+- **Bypass:** Video must pass all checks (no overrides)
+- **Audit:** Failed videos stored with detailed report
+
+### 3. Rate Limiting
+- **Mechanism:** GitHub Actions concurrency groups
+- **Limits:**
+  - Max 6 uploads per day (YouTube quota)
+  - Max 10 concurrent generation jobs
+  - Max 200 Pexels API calls per hour
+- **Enforcement:** Workflow waits if limit reached
+
+### 4. Cost Control
+- **Mechanism:** Budget thresholds in config
+- **Limits:**
+  - Max $50/month for APIs
+  - Alert at 80% budget
+  - Hard stop at 100% budget
+- **Tracking:** Cost tracking workflow (daily)
+
+### 5. Content Policy
+- **Mechanism:** Pre-upload content scan
+- **Checks:**
+  - Copyright detection (audio)
+  - Profanity filter (script)
+  - Brand safety (context)
+- **Action:** Reject video if any check fails
+
+## Failure Points and Prevention
+
+### Failure Point 1: API Rate Limits
+**Risk:** Exceeding YouTube/Pexels API quotas
+
+**Prevention:**
+- Quota tracking in workflow state
+- Exponential backoff on rate limit errors
+- Proactive quota monitoring
+- Alert at 80% usage
+
+**Recovery:**
+- Queue excess requests for next day
+- Automatic retry with delay
+
+### Failure Point 2: Content Quality Degradation
+**Risk:** System produces low-quality content at scale
+
+**Prevention:**
+- Strict quality validator (automated)
+- Performance-based pattern weighting
+- Regular audit reports (daily)
+- Manual spot-check trigger
+
+**Recovery:**
+- Auto-disable failing patterns
+- Revert to last known good config
+
+### Failure Point 3: Monetization Drop
+**Risk:** RPM decreases due to poor content
+
+**Prevention:**
+- RPM tracking per video
+- Alert if RPM < 50% of average
+- Auto-pause production if trend negative
+
+**Recovery:**
+- Roll back to previous winning patterns
+- Increase quality threshold temporarily
+
+### Failure Point 4: OAuth Token Expiration
+**Risk:** YouTube upload fails due to expired credentials
+
+**Prevention:**
+- Token refresh in workflow
+- Alert 7 days before expiration
+- Fallback: Manual token rotation instructions
+
+**Recovery:**
+- Workflow pauses
+- GitHub issue auto-created with instructions
+
+### Failure Point 5: Storage Limits
+**Risk:** GitHub Actions artifacts fill up
+
+**Prevention:**
+- Automatic cleanup of old artifacts (>30 days)
+- Compress videos before storage
+- Use external storage for finals
+
+**Recovery:**
+- Cleanup workflow runs on schedule
+
+### Failure Point 6: Parallel Job Conflicts
+**Risk:** 10x scaling causes race conditions
+
+**Prevention:**
+- Each job has unique workspace
+- No shared mutable state
+- Atomic file operations
+- Job-level locking where needed
+
+**Recovery:**
+- Failed jobs don't affect others
+- Automatic retry for transient failures
+
+### Failure Point 7: Pattern Staleness
+**Risk:** System keeps producing outdated content
+
+**Prevention:**
+- Weekly pattern refresh (forced)
+- Performance decay function (older patterns lose weight)
+- Trend detection (new patterns get bonus)
+
+**Recovery:**
+- Automatic pattern pruning (bottom 20%)
+
+## System States
+
+### State 1: Learning (Weeks 1-2)
+- Scale: 1x (1 video per cycle)
+- Quality threshold: 85
+- Pattern count: Top 10 only
+- Human review: Optional spot-check
+
+### State 2: Stable (Weeks 3-8)
+- Scale: 3x (3 videos per cycle)
+- Quality threshold: 75
+- Pattern count: Top 30
+- Human review: Weekly performance review
+
+### State 3: Scaled (Week 9+)
+- Scale: 10x (10 videos per cycle)
+- Quality threshold: 75
+- Pattern count: Top 50
+- Human review: Monthly audit only
+
+## Configuration Management
+
+All system parameters live in `config/system_config.yaml`:
+
+```yaml
+detection:
+  niche: "personal_finance"  # or "fitness", "tech_tips", etc.
+  scan_frequency_hours: 6
+  top_patterns_count: 50
+  min_pattern_frequency: 3
+  
+scoring:
+  rejection_threshold: 75
+  priority_threshold: 85
+  max_queue_size: 100
+  
+generation:
+  parallel_jobs: 1  # 1, 3, or 10
+  script_model: "gpt-4"
+  max_script_tokens: 500
+  video_duration_sec: [45, 60]
+  
+publication:
+  daily_upload_limit: 6
+  privacy: "public"
+  category_id: 22  # People & Blogs
+  
+learning:
+  performance_check_delay_hours: 24
+  winner_percentile: 0.8  # Top 20%
+  min_views_for_analysis: 1000
+  
+monetization:
+  target_rpm: 5.0
+  alert_rpm_drop_percent: 50
+  
+scaling:
+  scale_factor: 1  # Start at 1x
+  max_scale_factor: 10
+  scale_up_after_winners: 5
+```
+
+Changes to config trigger validation workflow before merge.
+
+## Success Metrics
+
+### Tier 1: Production Health
+- Ideas generated per day
+- Ideas passing gate (%)
+- Videos produced per day
+- Videos passing QA (%)
+- Upload success rate (%)
+
+### Tier 2: Content Performance
+- Average CTR
+- Average retention
+- Average RPM
+- Winner rate (top 20%)
+
+### Tier 3: Business Impact
+- Total views (monthly)
+- Total revenue (monthly)
+- Cost per video
+- Profit margin (%)
+
+All metrics tracked in `data/metrics.json` and visualized via GitHub Pages dashboard.
+
+## Security and Compliance
+
+### Secrets Management
+- YouTube OAuth: GitHub Secrets (`YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_REFRESH_TOKEN`)
+- API Keys: GitHub Secrets (`PEXELS_API_KEY`, `OPENAI_API_KEY`)
+- No secrets in code or artifacts
+
+### Content Compliance
+- Automated copyright check before upload
+- Profanity filter on scripts
+- Community guidelines check (keyword-based)
+- COPPA compliance (no content targeting children)
+
+### Data Privacy
+- No personal data collected
+- Analytics data anonymized
+- Storage: GitHub (private repo) or S3 (encrypted)
 
 ## Deployment
 
-### Development Mode
-```bash
-python -m shortsfactory.main all
-```
-
-### Production Mode
-Run components separately:
-```bash
-# Terminal 1: Watcher
-python -m shortsfactory.watcher
-
-# Terminal 2: Workers
-python -m shortsfactory.workers.manager
-
-# Terminal 3: Dashboard
-python -m shortsfactory.dashboard.app
-```
-
-### System Service
-Use systemd (Linux) or Task Scheduler (Windows) to run as background services.
+1. Fork this repository
+2. Set GitHub Secrets (see above)
+3. Configure `config/system_config.yaml` for your niche
+4. Enable GitHub Actions
+5. Manually trigger viral_detection workflow to start
+6. System runs autonomously thereafter
 
 ## Maintenance
 
-### Backup Strategy
-- Database: Regular SQLite backups
-- Storage: External backup of finals/
-- Config: Version control settings.yaml
+### Weekly:
+- Review performance report
+- Check for failed workflows
+- Verify API quota usage
 
-### Monitoring
-- Check logs/ directory regularly
-- Review failed jobs in dashboard
-- Monitor upload success rate
+### Monthly:
+- Audit video quality (sample 10 videos)
+- Review monetization metrics
+- Update niche config if needed
 
-### Cleanup
-- Periodically archive old intermediate files
-- Maintain finals/ as permanent archive
-- Clean up logs older than 30 days
+### Quarterly:
+- Update pattern templates
+- Refresh API credentials
+- Review and optimize costs
 
-## License and Usage
+---
 
-This system is designed for:
-- Personal content creation
-- Small business automation
-- Educational purposes
-- Compliant commercial use
-
-NOT designed for:
-- Spam or abuse
-- Terms of service violations
-- Malicious activity
-- Hidden/stealth operations
-
-All operations must be transparent and authorized.
+**This system is designed for zero human intervention once configured. Every decision point is automated and enforceable via GitHub Actions.**

@@ -1,0 +1,264 @@
+# YouTube Shorts Automation System - Configuration
+
+# Detection Settings
+detection:
+  niche: "personal_finance"  # Options: personal_finance, tech_tips, productivity, fitness, etc.
+  scan_frequency_hours: 6    # How often to scan for viral patterns
+  top_patterns_count: 50     # Number of patterns to track
+  min_pattern_frequency: 3   # Minimum occurrences to consider pattern
+  lookback_days: 7          # How far back to analyze
+  min_views_threshold: 100000  # Minimum views to consider viral
+  
+  # YouTube API settings
+  youtube:
+    max_results_per_query: 50
+    search_order: "viewCount"
+    video_duration: "short"  # Under 60 seconds
+  
+  # Keywords for niche (will be expanded automatically)
+  keywords:
+    - "money tips"
+    - "finance hacks"
+    - "passive income"
+    - "save money"
+    - "investing"
+
+# Scoring Settings
+scoring:
+  rejection_threshold: 75    # Ideas below this score are rejected
+  priority_threshold: 85     # Ideas above this are prioritized
+  max_queue_size: 100       # Maximum ideas in queue
+  
+  # Scoring weights (must sum to 1.0)
+  weights:
+    pattern_frequency: 0.30   # How often this pattern works
+    recency: 0.20            # How recent the pattern is
+    engagement_rate: 0.25    # Average engagement
+    competition: 0.15        # Market saturation (inverse)
+    audience_fit: 0.10       # Match with channel audience
+
+# Generation Settings
+generation:
+  parallel_jobs: 1          # 1, 3, or 10 (scale factor)
+  
+  # Script generation
+  script:
+    model: "gpt-4"          # or "gpt-3.5-turbo" for cost savings
+    max_tokens: 500
+    temperature: 0.7
+    min_duration_sec: 45
+    max_duration_sec: 60
+  
+  # Visual generation
+  visuals:
+    source: "pexels"        # Stock image/video source
+    images_per_video: 5     # Average number of images
+    transition_duration: 0.3  # Seconds between images
+    resolution:
+      width: 1080
+      height: 1920
+    fps: 30
+  
+  # Audio settings
+  audio:
+    music_enabled: true
+    music_volume: 0.2       # 20% of max
+    target_lufs: -14        # Audio normalization target
+  
+  # Caption settings
+  captions:
+    enabled: true
+    font_size: 80
+    font_family: "Arial Bold"
+    position: "center"
+    color: "white"
+    stroke_color: "black"
+    stroke_width: 3
+
+# Quality Validation Settings
+quality:
+  strict_mode: true
+  
+  checks:
+    duration:
+      min_sec: 15
+      max_sec: 60
+    resolution:
+      width: 1080
+      height: 1920
+    file_size:
+      max_mb: 100
+    audio:
+      required: true
+      lufs_tolerance: 1.0   # ±1 LUFS from target
+    first_frame:
+      not_black: true
+    captions:
+      contrast_ratio_min: 4.5
+    copyright:
+      enabled: true
+      threshold: 0.95       # Fingerprint match threshold
+
+# Publication Settings
+publication:
+  platform: "youtube"
+  daily_upload_limit: 6     # YouTube API quota constraint
+  
+  # Video metadata
+  privacy: "public"          # or "private", "unlisted"
+  category_id: 22           # People & Blogs
+  
+  # Metadata templates
+  title_template: "{hook} #{niche_hashtag}"
+  description_template: |
+    {video_description}
+    
+    🔔 Subscribe for daily {niche} tips!
+    
+    #Shorts #{niche_hashtag} #Viral
+  
+  # SEO optimization
+  seo:
+    max_title_length: 100
+    max_description_length: 5000
+    tags_count: 15
+    hashtags_count: 5
+
+# Learning Settings
+learning:
+  performance_check_delay_hours: 24  # Wait before fetching analytics
+  winner_percentile: 0.8            # Top 20% are winners
+  min_views_for_analysis: 1000      # Minimum views to include in analysis
+  
+  # Metrics to track
+  metrics:
+    - views
+    - ctr
+    - average_view_duration
+    - likes
+    - comments
+    - shares
+    - retention_rate
+  
+  # Optimization
+  winner_weight_multiplier: 2.0     # Increase winner pattern weight by 2x
+  loser_weight_multiplier: 0.5      # Decrease loser pattern weight by 0.5x
+  pattern_decay_days: 30            # Reduce weight of old patterns
+
+# Monetization Settings
+monetization:
+  enabled: false            # Auto-enable when monetization requirements met
+  min_subscribers: 1000
+  min_views_90d: 10000000
+  
+  # Revenue tracking
+  target_rpm: 5.0           # Target revenue per mille
+  alert_rpm_drop_percent: 50  # Alert if RPM drops by 50%
+  
+  # Affiliate marketing
+  affiliates:
+    enabled: false
+    networks:
+      - name: "amazon"
+        enabled: false
+      - name: "clickbank"
+        enabled: false
+  
+  # Product funnel
+  funnel:
+    enabled: false
+    landing_page_url: ""
+    cta_enabled: false
+
+# Scaling Settings
+scaling:
+  scale_factor: 1           # Current scale (1x, 3x, or 10x)
+  max_scale_factor: 10
+  auto_scale: false         # Automatically scale based on performance
+  
+  # Auto-scaling triggers
+  scale_up_conditions:
+    min_winner_rate: 0.20   # 20% of videos must be winners
+    min_avg_ctr: 0.03       # 3% CTR
+    min_videos_count: 50    # Need at least 50 videos before scaling
+  
+  scale_down_conditions:
+    max_failure_rate: 0.30  # Scale down if >30% failures
+    rpm_drop_percent: 50    # Scale down if RPM drops >50%
+
+# Cost Control Settings
+cost_control:
+  enabled: true
+  monthly_budget: 100       # USD
+  
+  allocation:
+    openai: 0.60            # 60% = $60
+    pexels: 0.20            # 20% = $20
+    other: 0.20             # 20% = $20
+  
+  alerts:
+    warning_threshold: 0.8   # 80% of budget
+    critical_threshold: 1.0  # 100% of budget
+  
+  # Per-operation cost estimates (for planning)
+  cost_per_operation:
+    script_generation: 0.05
+    visual_fetch: 0.00      # Free tier
+    video_render: 0.00      # Compute only
+    upload: 0.00            # API quota, no direct cost
+
+# System Settings
+system:
+  # Logging
+  log_level: "INFO"         # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  log_to_file: true
+  log_file_path: "data/logs/system.log"
+  
+  # Storage
+  data_dir: "data"
+  video_storage: "local"    # or "s3", "gcs"
+  artifact_retention_days: 7
+  
+  # Error handling
+  max_retries: 3
+  retry_delay_seconds: 10
+  exponential_backoff: true
+  
+  # Rate limiting
+  rate_limits:
+    youtube_api:
+      daily_quota: 10000
+      reserve_for_analytics: 1000
+    openai_api:
+      requests_per_minute: 60
+    pexels_api:
+      requests_per_hour: 200
+
+# Notification Settings
+notifications:
+  enabled: true
+  
+  channels:
+    github_issues: true     # Create issues for alerts
+    email: false            # Requires email configuration
+    slack: false            # Requires webhook URL
+  
+  alert_levels:
+    info: ["github_issues"]
+    warning: ["github_issues"]
+    error: ["github_issues", "email"]
+    critical: ["github_issues", "email", "slack"]
+
+# Feature Flags
+features:
+  viral_detection: true
+  content_generation: true
+  auto_upload: true
+  performance_tracking: true
+  auto_optimization: true
+  cost_tracking: true
+  
+  # Experimental
+  a_b_testing: false
+  multi_language: false
+  trend_prediction: false

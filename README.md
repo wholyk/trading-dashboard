@@ -1,181 +1,309 @@
-# ShortsFactory
+# YouTube Shorts Automation System
 
-A business-grade, local, permissioned automation system for YouTube Shorts production.
+A fully automated GitHub-based system that detects viral patterns, generates content, publishes to YouTube, and optimizes based on performance—all without human intervention.
 
-## Overview
+## What This System Does
 
-ShortsFactory is an end-to-end YouTube Shorts production system that automatically ingests content, processes it, enforces quality control, and publishes approved Shorts — reliably, safely, and repeatably.
+1. **Detects Viral Patterns:** Scans YouTube Shorts every 6 hours to identify what's working in your niche
+2. **Scores Ideas:** Assigns confidence scores (0-100) to content ideas
+3. **Rejects Bad Ideas:** Only produces content scoring ≥75 (no human override)
+4. **Generates Content:** Creates script → visuals → captions → metadata automatically
+5. **Publishes:** Uploads to YouTube via API (6 videos/day)
+6. **Learns:** Tracks performance, doubles down on winners, penalizes losers
+7. **Scales:** Goes from 1x to 10x output via parallelization without quality loss
 
-## Features
-
-- **Automated Ingestion**: Watched folders for videos, clips, and ideas
-- **Job Queue Management**: SQLite-based state machine with full lifecycle tracking
-- **Worker Pipeline**: Modular workers for cutting, formatting, captioning, metadata, and rendering
-- **Quality Control**: Local review interface with approval gates
-- **Safe Publishing**: Rate-limited uploads with retry logic and duplicate protection
-- **Full Observability**: Dashboard showing queue status, jobs, and history
-- **Crash-Safe**: All jobs are resumable after crashes or restarts
-- **Audit Trail**: Complete logging of all actions with timestamps
-
-## Architecture
+## Repository Structure
 
 ```
-ShortsFactory/
-├── INBOX/                  # Input folders (watched)
-│   ├── long_videos/
-│   ├── clips/
-│   └── ideas.txt
-├── storage/                # Persistent storage
-│   ├── originals/
-│   ├── intermediate/
-│   ├── finals/
-│   └── captions/
-├── logs/                   # Audit trail
-├── database/               # SQLite database
-├── workers/                # Processing workers
-├── dashboard/              # Web UI
-└── config/                 # Configuration
+.
+├── .github/
+│   └── workflows/              # GitHub Actions automation
+│       ├── viral_detection.yml
+│       ├── content_generation.yml
+│       ├── upload_automation.yml
+│       └── performance_analysis.yml
+├── src/
+│   ├── detection/              # Viral pattern detection & scoring
+│   │   ├── viral_detector.py
+│   │   ├── idea_scorer.py
+│   │   └── rejection_gate.py
+│   ├── generation/             # Content creation pipeline
+│   │   ├── script_generator.py
+│   │   ├── visual_generator.py
+│   │   ├── caption_generator.py
+│   │   └── quality_validator.py
+│   ├── publication/            # YouTube upload automation
+│   │   └── youtube_uploader.py
+│   ├── learning/               # Performance tracking & optimization
+│   │   ├── performance_tracker.py
+│   │   └── auto_optimizer.py
+│   └── utils/                  # Shared utilities
+│       └── cost_tracker.py     # Cost monitoring utilities
+├── config/
+│   ├── system_config.yaml      # Main system configuration
+│   └── secrets.example.yaml    # Example secrets file
+├── templates/
+│   ├── scripts/                # Winning script templates
+│   └── prompts/                # GPT-4 prompt templates
+├── data/                       # Gitignored data storage
+│   ├── rejected/               # Rejected ideas with reasons
+│   ├── failed_qa/              # Videos that failed quality checks
+│   ├── videos/                 # Generated videos (temporary)
+│   └── metrics/                # Performance metrics
+├── ARCHITECTURE.md             # Technical system design
+├── SCALING.md                  # How to scale 1x → 10x
+├── MONETIZATION.md             # Revenue optimization strategy
+└── FAILURE_POINTS.md           # Failure modes and prevention
 ```
 
-## Job Lifecycle States
+## Prerequisites
 
-- `NEW` - Job created, pending processing
-- `CUTTING` - Clip selection in progress
-- `FORMATTING` - Converting to 9:16 format
-- `CAPTIONING` - Adding captions
-- `METADATA` - Generating title/description/hashtags
-- `RENDERING` - Final export
-- `READY_FOR_REVIEW` - Awaiting human approval
-- `APPROVED` - Approved for upload
-- `REJECTED` - Rejected by reviewer
-- `UPLOADING` - Upload in progress
-- `PUBLISHED` - Successfully published
-- `FAILED` - Processing failed (with reason)
+1. **GitHub Account** with Actions enabled
+2. **YouTube Channel** with API access enabled
+3. **API Keys:**
+   - YouTube Data API v3 (OAuth 2.0 credentials)
+   - OpenAI API (GPT-4 access)
+   - Pexels API (free tier)
 
-## Installation
+## Setup Instructions
 
-1. Clone the repository:
+### Step 1: Fork and Clone
+
 ```bash
-git clone <repository-url>
+# Note: Repository name is "trading-dashboard" but contains YouTube Shorts automation system
+git clone https://github.com/YOUR_USERNAME/trading-dashboard.git
 cd trading-dashboard
 ```
 
-2. Create a virtual environment:
-```bash
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+### Step 2: Configure GitHub Secrets
+
+Go to Settings → Secrets and Variables → Actions, add:
+
+| Secret Name | Description | How to Get |
+|------------|-------------|------------|
+| `YOUTUBE_CLIENT_ID` | YouTube OAuth client ID | [Google Cloud Console](https://console.cloud.google.com/) |
+| `YOUTUBE_CLIENT_SECRET` | YouTube OAuth client secret | Same as above |
+| `YOUTUBE_REFRESH_TOKEN` | OAuth refresh token | Run `python src/utils/oauth_setup.py` |
+| `OPENAI_API_KEY` | OpenAI API key | [OpenAI Platform](https://platform.openai.com/) |
+| `PEXELS_API_KEY` | Pexels API key | [Pexels API](https://www.pexels.com/api/) |
+
+### Step 3: Configure Your Niche
+
+Edit `config/system_config.yaml`:
+
+```yaml
+detection:
+  niche: "personal_finance"  # Change to your niche
+  keywords:
+    - "money tips"
+    - "finance hacks"
+    - "passive income"
 ```
 
-3. Install dependencies:
-```bash
-pip install -r requirements.txt
+Niche-specific presets (your niche name, keywords, and related settings) are all configured under the `detection` section in `config/system_config.yaml`; there is no separate `niche_config.yaml` file.
+
+### Step 4: Enable GitHub Actions
+
+1. Go to Actions tab in your repo
+2. Click "I understand my workflows, go ahead and enable them"
+3. Manually trigger "Viral Detection" workflow to start the system
+
+### Step 5: Verify Setup
+
+Check the Actions tab for workflow runs. First run should:
+- ✅ Detect viral patterns
+- ✅ Score at least one idea above threshold
+- ✅ Generate a video
+- ✅ Pass quality validation
+- ✅ Upload to YouTube (if credentials correct)
+
+## How It Works
+
+### Automated Cycle (Every 6 Hours)
+
+```
+1. Viral Detection (6h)
+   └─> Scans top YouTube Shorts
+   └─> Identifies patterns
+   └─> Scores ideas
+
+2. Rejection Gate
+   └─> Score < 75? REJECT
+   └─> Score ≥ 75? PROCEED
+
+3. Content Generation (parallel)
+   └─> Script from GPT-4
+   └─> Visuals from Pexels + FFmpeg
+   └─> Captions with SEO
+
+4. Quality Validation
+   └─> Duration check
+   └─> Resolution check
+   └─> Audio check
+   └─> Pass? UPLOAD
+
+5. Publication
+   └─> Upload to YouTube
+   └─> Store video ID
+
+6. Performance Learning (24h later)
+   └─> Fetch analytics
+   └─> Identify winners
+   └─> Adjust pattern weights
 ```
 
-4. Initialize the system:
+### Scaling Strategy
+
+Start at 1x, scale when ready:
+
 ```bash
-python -m shortsfactory.init
+# Scale to 3x (3 videos per cycle)
+# Edit config/system_config.yaml
+generation:
+  parallel_jobs: 3
+
+# Scale to 10x (10 videos per cycle)
+generation:
+  parallel_jobs: 10
 ```
 
-## Usage
+System automatically parallelizes via GitHub Actions matrix strategy.
 
-### Starting the System
+## Monitoring
 
-1. Start the ingestion watcher:
-```bash
-python -m shortsfactory.watcher
-```
+### Dashboard
+Visit Actions tab to see:
+- Workflow runs (success/failure)
+- Logs for each step
+- Artifacts (videos, reports)
 
-2. Start the worker processes:
-```bash
-python -m shortsfactory.workers
-```
+### Metrics
+Performance metrics stored in `data/metrics/`:
+- `daily_stats.json` - Daily production metrics
+- `video_performance.json` - Per-video analytics
+- `cost_tracking.json` - API costs
 
-3. Start the dashboard:
-```bash
-python -m shortsfactory.dashboard
-```
+### Alerts
+System creates GitHub Issues for:
+- API quota warnings (80% usage)
+- Quality validation failures
+- OAuth token expiration (7 days notice)
+- RPM drop (>50% decrease)
 
-4. Access the dashboard at `http://localhost:8501`
+## Troubleshooting
 
-### Adding Content
+### No Ideas Passing Gate
+**Symptom:** Rejection gate blocks all ideas
 
-1. Place video files in `INBOX/long_videos/` or `INBOX/clips/`
-2. Add text ideas to `INBOX/ideas.txt`
-3. The system will automatically create jobs and begin processing
+**Solution:** 
+- Lower threshold in `config/system_config.yaml` (try 70)
+- Check if niche is too competitive
+- Verify YouTube API is returning results
 
-### Reviewing Content
+### Upload Failures
+**Symptom:** Videos generate but don't upload
 
-1. Open the dashboard at `http://localhost:8501`
-2. Navigate to "Review Queue"
-3. Preview videos, approve or reject
-4. Approved videos will be queued for upload
+**Solution:**
+- Check YouTube OAuth credentials
+- Verify API quota not exceeded
+- Check video meets YouTube requirements (duration, size)
 
-### Monitoring
+### Quality Validation Fails
+**Symptom:** Videos fail quality checks
 
-- View queue status in the dashboard
-- Check logs in the `logs/` directory
-- Review job details in the database
+**Solution:**
+- Check FFmpeg installation in workflow
+- Verify Pexels API returns valid images
+- Review `data/failed_qa/` for specific errors
 
-## Configuration
+### High Costs
+**Symptom:** API costs exceed budget
 
-Edit `config/settings.yaml` to customize:
-- Upload schedule and throttling
-- Worker behavior
-- Video processing parameters
-- Channel settings
+**Solution:**
+- Reduce `parallel_jobs` to 1
+- Increase detection frequency to 12 hours
+- Use lower-cost GPT model (gpt-3.5-turbo)
 
-## Safety Features
+## Cost Estimation
 
-- **Explicit Permission**: All operations require user authorization
-- **Review Gate**: Nothing uploads without manual approval
-- **Rate Limiting**: Respects platform limits with randomized timing
-- **Graceful Shutdown**: Clean shutdown on CTRL+C
-- **Full Audit Trail**: Every action is logged
-- **Crash Recovery**: Jobs resume from last known state
+### At 1x Scale (1 video per 6 hours = 4 videos/day)
 
-## Extending the System
+| Service | Usage | Cost/Month |
+|---------|-------|-----------|
+| OpenAI API | 120 scripts | $6 |
+| Pexels API | Free | $0 |
+| YouTube API | Free | $0 |
+| GitHub Actions | ~500 min/month | Free (2000 min free) |
+| **Total** | | **$6/month** |
 
-### Adding a New Worker
+### At 10x Scale (10 videos per 6 hours = 40 videos/day)
 
-1. Create a new worker in `workers/`
-2. Implement the `Worker` base class
-3. Register it in the worker manager
-4. Add corresponding state to the state machine
+| Service | Usage | Cost/Month |
+|---------|-------|-----------|
+| OpenAI API | 1200 scripts | $60 |
+| Pexels API | Need paid tier | $20 |
+| YouTube API | Free (within quota) | $0 |
+| GitHub Actions | ~5000 min/month | $8 (3000 min overage) |
+| **Total** | | **$88/month** |
 
-### Adding Channel Support
+## Monetization (Once Eligible)
 
-1. Add channel configuration in `config/settings.yaml`
-2. Create channel-specific templates
-3. Configure upload credentials per channel
+YouTube Shorts monetization requires:
+- 1,000 subscribers
+- 10 million Shorts views in 90 days
 
-### Analytics Integration
+**Expected Timeline:**
+- Month 1-2: Build audience (1x scale)
+- Month 3-4: Grow rapidly (3x scale)
+- Month 5-6: Hit monetization threshold
+- Month 7+: Profit (10x scale)
 
-The system is designed to support analytics feedback loops:
-- Add analytics data collection in the upload module
-- Create analytics workers for processing feedback
-- Adjust metadata generation based on performance
+**Revenue Projection:**
+- Average Shorts RPM: $3-8
+- At 1M views/month: $3,000-8,000
+- Cost at 10x: $88
+- Net profit: $2,912-7,912/month
 
-## Uninstalling
+See `MONETIZATION.md` for detailed strategy.
 
-1. Stop all running processes (CTRL+C)
-2. Remove the virtual environment: `rm -rf .venv`
-3. Remove the project directory
-4. No system-wide changes are made
+## Security
 
-## Safety and Compliance
+- ✅ All secrets in GitHub Secrets (never in code)
+- ✅ Automatic copyright detection
+- ✅ Content policy compliance checks
+- ✅ No personal data collected
+- ✅ Rate limiting enforced
 
-This system:
-- Runs locally with explicit user permission
-- Does NOT bypass any security measures
-- Does NOT hide or obfuscate its operation
-- Does NOT self-persist without consent
-- Respects platform terms of service
-- Includes safety throttles and randomization
+## Compliance
 
-## License
-
-See LICENSE file for details.
+- ✅ YouTube Terms of Service compliant
+- ✅ API rate limits respected
+- ✅ No spam or deceptive practices
+- ✅ COPPA compliant (no targeting children)
+- ✅ DMCA compliant (copyright checks)
 
 ## Support
 
-For issues, questions, or feature requests, please open an issue on GitHub.
+- **Issues:** Open GitHub issue with logs
+- **Docs:** See `ARCHITECTURE.md` for technical details
+- **Scaling:** See `SCALING.md` for growth strategy
+- **Failures:** See `FAILURE_POINTS.md` for debugging
+
+## License
+
+MIT License - See LICENSE file
+
+## Disclaimer
+
+This system automates content creation and publishing. You are responsible for:
+- Ensuring content complies with YouTube policies
+- Monitoring published content
+- Responding to copyright claims
+- Maintaining API credentials
+- Staying within API quotas and budgets
+
+Automation does not absolve you of responsibility for your channel.
+
+---
+
+**Built for execution, not experimentation. Deploy once, run forever.**
