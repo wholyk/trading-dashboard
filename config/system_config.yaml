@@ -25,7 +25,7 @@ detection:
 
 # Scoring Settings
 scoring:
-  rejection_threshold: 75    # Ideas below this score are rejected
+  rejection_threshold: 50    # Ideas below this score are rejected
   priority_threshold: 85     # Ideas above this are prioritized
   max_queue_size: 100       # Maximum ideas in queue
   
