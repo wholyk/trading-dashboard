@@ -21,8 +21,7 @@ A fully automated GitHub-based system that detects viral patterns, generates con
 │       ├── viral_detection.yml
 │       ├── content_generation.yml
 │       ├── upload_automation.yml
-│       ├── performance_analysis.yml
-│       └── scaling_orchestrator.yml
+│       └── performance_analysis.yml
 ├── src/
 │   ├── detection/              # Viral pattern detection & scoring
 │   │   ├── viral_detector.py
