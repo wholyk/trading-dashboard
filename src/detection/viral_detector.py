@@ -5,9 +5,10 @@ Viral Pattern Detector
 Scans YouTube Shorts in a target niche to identify viral patterns.
 Outputs pattern statistics and generates content ideas.
 
-Safe for GitHub Actions:
-- Automatically falls back to mock data when YouTube API
-  credentials or libraries are unavailable.
+SAFE FOR GITHUB ACTIONS:
+- Automatically disables YouTube API in CI
+- Falls back to mock data
+- Never throws HttpError in Actions
 """
 
 import os
@@ -16,10 +17,10 @@ import json
 import yaml
 from datetime import datetime, timedelta
 
-# Detect CI environment
+# Detect GitHub Actions
 CI_MODE = os.getenv("GITHUB_ACTIONS") == "true"
 
-# Optional YouTube imports
+# Optional YouTube imports (will fail safely in CI)
 try:
     from googleapiclient.discovery import build
     from google.oauth2.credentials import Credentials
@@ -35,13 +36,13 @@ def load_config():
 
 
 def get_youtube_client():
-    """Initialize YouTube API client (disabled in CI)"""
+    """Initialize YouTube API client (DISABLED IN CI)"""
     if CI_MODE:
-        print("CI mode detected — skipping YouTube API")
+        print("CI detected — YouTube API disabled")
         return None
 
     if build is None or Credentials is None:
-        raise RuntimeError("YouTube client libraries not available")
+        raise RuntimeError("YouTube client libraries unavailable")
 
     client_id = os.getenv("YOUTUBE_CLIENT_ID")
     client_secret = os.getenv("YOUTUBE_CLIENT_SECRET")
@@ -62,24 +63,24 @@ def get_youtube_client():
 
 
 def search_viral_shorts(youtube, config):
-    """Search for viral Shorts in niche"""
+    """Search for viral Shorts OR use mock data in CI"""
 
-    # CI / mock mode
+    # 🔒 CI-safe mock data
     if youtube is None:
-        print("Using mock viral video data")
+        print("Using mock viral data")
         return [
             {
                 "video_id": "mock_video_1",
                 "views": 1_200_000,
-                "likes": 54_000,
-                "comments": 3_200,
+                "likes": 54000,
+                "comments": 3200,
                 "duration": "PT45S",
             },
             {
                 "video_id": "mock_video_2",
-                "views": 980_000,
-                "likes": 41_000,
-                "comments": 2_100,
+                "views": 980000,
+                "likes": 41000,
+                "comments": 2100,
                 "duration": "PT38S",
             },
         ]
@@ -97,8 +98,8 @@ def search_viral_shorts(youtube, config):
 
     for keyword in keywords:
         try:
-            request = youtube.search().list(
-                part="id,snippet",
+            search = youtube.search().list(
+                part="id",
                 q=f"{keyword} #shorts",
                 type="video",
                 videoDuration="short",
@@ -106,7 +107,7 @@ def search_viral_shorts(youtube, config):
                 maxResults=max_results,
                 publishedAfter=published_after,
             )
-            response = request.execute()
+            response = search.execute()
 
             video_ids = [
                 item["id"]["videoId"]
@@ -117,34 +118,28 @@ def search_viral_shorts(youtube, config):
             if not video_ids:
                 continue
 
-            stats_request = youtube.videos().list(
+            stats = youtube.videos().list(
                 part="statistics,contentDetails",
                 id=",".join(video_ids),
-            )
-            stats_response = stats_request.execute()
+            ).execute()
 
-            for video in stats_response.get("items", []):
-                view_count = int(video["statistics"].get("viewCount", 0))
-                if view_count < min_views:
+            for video in stats.get("items", []):
+                views = int(video["statistics"].get("viewCount", 0))
+                if views < min_views:
                     continue
 
                 all_videos.append(
                     {
                         "video_id": video["id"],
-                        "views": view_count,
+                        "views": views,
                         "likes": int(video["statistics"].get("likeCount", 0)),
-                        "comments": int(
-                            video["statistics"].get("commentCount", 0)
-                        ),
+                        "comments": int(video["statistics"].get("commentCount", 0)),
                         "duration": video["contentDetails"]["duration"],
                     }
                 )
 
         except Exception as e:
-            print(
-                f"Error searching keyword '{keyword}', skipping: {e}",
-                file=sys.stderr,
-            )
+            print(f"Skipping keyword '{keyword}': {e}", file=sys.stderr)
 
     return all_videos
 
@@ -153,18 +148,18 @@ def extract_patterns(videos):
     """Extract viral patterns from videos"""
     patterns = {}
 
-    for video in videos:
+    for v in videos:
         engagement = (
-            (video["likes"] + video["comments"]) / video["views"]
-            if video["views"] > 0
+            (v["likes"] + v["comments"]) / v["views"]
+            if v["views"] > 0
             else 0
         )
 
-        if video["views"] > 1_000_000:
+        if v["views"] > 1_000_000:
             key = "mega_viral"
-        elif video["views"] > 500_000:
+        elif v["views"] > 500_000:
             key = "high_viral"
-        elif video["views"] > 100_000:
+        elif v["views"] > 100_000:
             key = "medium_viral"
         else:
             key = "low_viral"
@@ -178,9 +173,9 @@ def extract_patterns(videos):
             }
 
         patterns[key]["frequency"] += 1
-        patterns[key]["avg_views"] += video["views"]
+        patterns[key]["avg_views"] += v["views"]
         patterns[key]["avg_engagement"] += engagement
-        patterns[key]["examples"].append(video["video_id"])
+        patterns[key]["examples"].append(v["video_id"])
 
     for p in patterns.values():
         p["avg_views"] /= p["frequency"]
