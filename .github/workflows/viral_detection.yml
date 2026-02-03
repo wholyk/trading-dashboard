@@ -13,7 +13,7 @@ jobs:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -58,7 +58,7 @@ jobs:
       
       - name: Save approved ideas
         if: steps.rejection-gate.outputs.approved_count > 0
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: approved-ideas
           path: data/idea_queue.json
@@ -66,7 +66,7 @@ jobs:
       
       - name: Save rejected ideas log
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: rejected-ideas
           path: data/rejected/
