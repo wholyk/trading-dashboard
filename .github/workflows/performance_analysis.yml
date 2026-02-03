@@ -85,6 +85,7 @@ jobs:
       
       - name: Check for quality drift
         id: quality-check
+        if: ${{ always() && hashFiles('src/learning/quality_drift_detector.py') != '' }}
         run: |
           python src/learning/quality_drift_detector.py
           echo "drift_detected=$?" >> $GITHUB_OUTPUT
