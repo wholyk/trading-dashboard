@@ -2,11 +2,12 @@
 """
 Viral Pattern Detector
 
-Scans YouTube Shorts in target niche to identify viral patterns.
-Outputs pattern dictionary with frequency scores.
+Scans YouTube Shorts in a target niche to identify viral patterns.
+Outputs pattern statistics and generates content ideas.
 
-Includes a safe mock fallback when YouTube API credentials
-are unavailable (for dry runs in GitHub Actions).
+Safe for GitHub Actions:
+- Automatically falls back to mock data when YouTube API
+  credentials or libraries are unavailable.
 """
 
 import os
@@ -15,7 +16,10 @@ import json
 import yaml
 from datetime import datetime, timedelta
 
-# Optional YouTube imports (may fail in dry runs)
+# Detect CI environment
+CI_MODE = os.getenv("GITHUB_ACTIONS") == "true"
+
+# Optional YouTube imports
 try:
     from googleapiclient.discovery import build
     from google.oauth2.credentials import Credentials
@@ -31,16 +35,20 @@ def load_config():
 
 
 def get_youtube_client():
-    """Initialize YouTube API client"""
+    """Initialize YouTube API client (disabled in CI)"""
+    if CI_MODE:
+        print("CI mode detected — skipping YouTube API")
+        return None
+
+    if build is None or Credentials is None:
+        raise RuntimeError("YouTube client libraries not available")
+
     client_id = os.getenv("YOUTUBE_CLIENT_ID")
     client_secret = os.getenv("YOUTUBE_CLIENT_SECRET")
     refresh_token = os.getenv("YOUTUBE_REFRESH_TOKEN")
 
     if not all([client_id, client_secret, refresh_token]):
         raise ValueError("Missing YouTube API credentials")
-
-    if build is None or Credentials is None:
-        raise RuntimeError("YouTube client libraries not available")
 
     credentials = Credentials(
         None,
@@ -55,11 +63,32 @@ def get_youtube_client():
 
 def search_viral_shorts(youtube, config):
     """Search for viral Shorts in niche"""
+
+    # CI / mock mode
+    if youtube is None:
+        print("Using mock viral video data")
+        return [
+            {
+                "video_id": "mock_video_1",
+                "views": 1_200_000,
+                "likes": 54_000,
+                "comments": 3_200,
+                "duration": "PT45S",
+            },
+            {
+                "video_id": "mock_video_2",
+                "views": 980_000,
+                "likes": 41_000,
+                "comments": 2_100,
+                "duration": "PT38S",
+            },
+        ]
+
     keywords = config["detection"]["keywords"]
     max_results = config["detection"]["youtube"]["max_results_per_query"]
     min_views = config["detection"]["min_views_threshold"]
-
     lookback_days = config["detection"]["lookback_days"]
+
     published_after = (
         datetime.now() - timedelta(days=lookback_days)
     ).isoformat() + "Z"
@@ -96,19 +125,20 @@ def search_viral_shorts(youtube, config):
 
             for video in stats_response.get("items", []):
                 view_count = int(video["statistics"].get("viewCount", 0))
+                if view_count < min_views:
+                    continue
 
-                if view_count >= min_views:
-                    all_videos.append(
-                        {
-                            "video_id": video["id"],
-                            "views": view_count,
-                            "likes": int(video["statistics"].get("likeCount", 0)),
-                            "comments": int(
-                                video["statistics"].get("commentCount", 0)
-                            ),
-                            "duration": video["contentDetails"]["duration"],
-                        }
-                    )
+                all_videos.append(
+                    {
+                        "video_id": video["id"],
+                        "views": view_count,
+                        "likes": int(video["statistics"].get("likeCount", 0)),
+                        "comments": int(
+                            video["statistics"].get("commentCount", 0)
+                        ),
+                        "duration": video["contentDetails"]["duration"],
+                    }
+                )
 
         except Exception as e:
             print(
@@ -119,7 +149,7 @@ def search_viral_shorts(youtube, config):
     return all_videos
 
 
-def extract_patterns(videos, config):
+def extract_patterns(videos):
     """Extract viral patterns from videos"""
     patterns = {}
 
@@ -153,9 +183,8 @@ def extract_patterns(videos, config):
         patterns[key]["examples"].append(video["video_id"])
 
     for p in patterns.values():
-        if p["frequency"] > 0:
-            p["avg_views"] /= p["frequency"]
-            p["avg_engagement"] /= p["frequency"]
+        p["avg_views"] /= p["frequency"]
+        p["avg_engagement"] /= p["frequency"]
 
     return patterns
 
@@ -184,39 +213,13 @@ def generate_ideas_from_patterns(patterns, config):
 
 
 def main():
-    """Main execution"""
     try:
         config = load_config()
 
-        # 🔁 TRY YOUTUBE → FALL BACK TO MOCK DATA
-        try:
-            print("Initializing YouTube API client...")
-            youtube = get_youtube_client()
-            print("Searching YouTube for viral Shorts...")
-            videos = search_viral_shorts(youtube, config)
-            print(f"Found {len(videos)} viral videos")
+        youtube = get_youtube_client()
+        videos = search_viral_shorts(youtube, config)
 
-        except Exception as e:
-            print("YouTube API unavailable, using mock data:", e)
-
-            videos = [
-                {
-                    "video_id": "mock_video_1",
-                    "views": 1_200_000,
-                    "likes": 54_000,
-                    "comments": 3_200,
-                    "duration": "PT45S",
-                },
-                {
-                    "video_id": "mock_video_2",
-                    "views": 980_000,
-                    "likes": 41_000,
-                    "comments": 2_100,
-                    "duration": "PT38S",
-                },
-            ]
-
-        patterns = extract_patterns(videos, config)
+        patterns = extract_patterns(videos)
         ideas = generate_ideas_from_patterns(patterns, config)
 
         os.makedirs("data", exist_ok=True)
