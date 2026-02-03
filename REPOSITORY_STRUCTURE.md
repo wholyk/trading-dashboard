@@ -221,10 +221,11 @@ src/
 - **Output:** Pass/fail (exit code)
 
 **cost_tracker.py**
-- Tracks API costs per operation
-- Monitors against budget
-- **Input:** Operation type, count
-- **Output:** Updated cost state
+- Placeholder for tracking API costs per operation
+- Intended to monitor usage against budget from `system_config.yaml` (`cost_control` settings)
+- **Current status:** Stub implementation; does not yet persist cost state or read configuration
+- **Planned input:** Operation type, count
+- **Planned output:** Updated cost state (persisted usage and budget checks)
 
 ## templates/
 
