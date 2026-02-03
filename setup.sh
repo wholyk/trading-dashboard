@@ -12,7 +12,7 @@ echo ""
 
 # Check Python version
 echo "Checking Python version..."
-python_version=$(python --version 2>&1 | grep -oP '\d+\.\d+')
+python_version=$(python --version 2>&1 | awk '{print $2}' | cut -d. -f1,2)
 min_version="3.8"
 
 if [ "$(printf '%s\n' "$min_version" "$python_version" | sort -V | head -n1)" != "$min_version" ]; then
