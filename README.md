@@ -101,7 +101,7 @@ detection:
     - "passive income"
 ```
 
-See `config/niche_config.yaml` for niche-specific presets.
+Niche-specific presets (your niche name, keywords, and related settings) are all configured under the `detection` section in `config/system_config.yaml`; there is no separate `niche_config.yaml` file.
 
 ### Step 4: Enable GitHub Actions
 
