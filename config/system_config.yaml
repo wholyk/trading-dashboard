@@ -5,7 +5,7 @@ detection:
   niche: "personal_finance"  # Options: personal_finance, tech_tips, productivity, fitness, etc.
   scan_frequency_hours: 6    # How often to scan for viral patterns
   top_patterns_count: 50     # Number of patterns to track
-  min_pattern_frequency: 3   # Minimum occurrences to consider pattern
+  min_pattern_frequency: 1   # Minimum occurrences to consider pattern
   lookback_days: 7          # How far back to analyze
   min_views_threshold: 100000  # Minimum views to consider viral
   
