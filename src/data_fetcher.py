@@ -19,6 +19,11 @@ class DataFetcher:
         """
         self.logger = logger or logging.getLogger(__name__)
     
+    # NOTE: We intentionally use `_self` instead of `self` in cached methods.
+    # Streamlit's `st.cache_data` includes all function arguments in the cache key,
+    # and it cannot reliably hash `self` (the instance). Using `_self` here is a
+    # convention to indicate that the instance is not meant to be hashed as part
+    # of the cache key while still allowing access to the logger via `_self.logger`.
     @st.cache_data(ttl=60, show_spinner=False)
     def get_stock_data(_self, ticker: str, period: str = "1y", interval: str = "1d") -> Optional[pd.DataFrame]:
         """
